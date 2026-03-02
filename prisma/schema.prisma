@@ -1,0 +1,263 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  CUSTOMER
+  VENDOR
+  ADMIN
+  DELIVERY_PARTNER
+}
+
+enum VendorStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum OrderStatus {
+  CREATED
+  PAYMENT_PENDING
+  PAID
+  CONFIRMED
+  PACKED
+  READY_FOR_PICKUP
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  INITIATED
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+enum InventoryReservationStatus {
+  RESERVED
+  CONFIRMED
+  RELEASED
+  EXPIRED
+}
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  passwordHash  String
+  role          Role
+  name          String
+  phone         String?  @unique
+  isActive      Boolean  @default(true)
+
+  vendor        Vendor?
+  deliveryProfile DeliveryPartner?
+  sessions      Session[]
+  orders        Order[]
+  cart          Cart?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([role])
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  userId       String
+  refreshToken String   @unique
+  expiresAt    DateTime
+  isRevoked    Boolean  @default(false)
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+}
+
+model DeliveryPartner {
+  id               String   @id @default(uuid())
+  userId           String   @unique
+  coveragePincodes String[] // Array of strings representing service areas
+  dailyCapacity    Int      @default(10)
+  activeDeliveries Int      @default(0)
+  
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders           Order[]
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model Vendor {
+  id          String       @id @default(uuid())
+  userId      String       @unique
+  businessName String
+  status      VendorStatus @default(PENDING)
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  products    Product[]
+  orders      Order[]
+
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model Category {
+  id        String    @id @default(uuid())
+  name      String    @unique
+  products  Product[]
+}
+
+model Product {
+  id           String   @id @default(uuid())
+  vendorId     String
+  categoryId   String
+
+  name         String
+  description  String
+  price        Decimal
+  stock        Int
+  isActive     Boolean  @default(true)
+
+  imageUrl     String?
+  imagePublicId String?
+
+  vendor       Vendor   @relation(fields: [vendorId], references: [id])
+  category     Category @relation(fields: [categoryId], references: [id])
+
+  cartItems    CartItem[]
+  orderItems   OrderItem[]
+  reservations InventoryReservation[]
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([vendorId])
+  @@index([categoryId])
+  @@index([price])
+}
+
+model Cart {
+  id        String     @id @default(uuid())
+  userId    String     @unique
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     CartItem[]
+
+  updatedAt DateTime   @updatedAt
+}
+
+model CartItem {
+  id        String   @id @default(uuid())
+  cartId    String
+  productId String
+  quantity  Int
+
+  cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id])
+
+  @@unique([cartId, productId])
+}
+
+model Order {
+  id          String       @id @default(uuid())
+  userId      String
+  vendorId    String
+  deliveryPartnerId String?
+
+  status      OrderStatus
+  totalAmount Decimal
+  deliveryPincode String
+
+  user        User         @relation(fields: [userId], references: [id])
+  vendor      Vendor       @relation(fields: [vendorId], references: [id])
+  deliveryPartner DeliveryPartner? @relation(fields: [deliveryPartnerId], references: [id])
+  items       OrderItem[]
+  payments    Payment[]
+  inventoryReservations  InventoryReservation[]
+  events      OrderEvent[]
+
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([userId])
+  @@index([vendorId])
+  @@index([status])
+}
+
+model OrderItem {
+  id        String   @id @default(uuid())
+  orderId   String
+  productId String
+
+  quantity  Int
+  price     Decimal  // snapshot
+
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+}
+
+model Payment {
+  id           String        @id @default(uuid())
+  orderId      String
+  status       PaymentStatus
+  amount       Decimal
+  gatewayRef   String?       @unique
+  idempotencyKey String?     @unique
+
+  order        Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([orderId])
+}
+
+model InventoryReservation {
+  id         String   @id @default(uuid())
+  productId  String
+  orderId    String
+  quantity   Int
+  status     InventoryReservationStatus
+  expiresAt  DateTime
+
+  product    Product  @relation(fields: [productId], references: [id])
+  order      Order    @relation(fields: [orderId], references: [id])
+
+  @@index([productId])
+  @@index([orderId])
+}
+
+model OrderEvent {
+  id        String   @id @default(uuid())
+  orderId   String
+  status    OrderStatus
+  note      String?
+
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([orderId])
+}
+
+model WebhookEvent {
+  id            String   @id @default(uuid())
+  eventId       String   @unique
+  type          String
+  payload       Json
+  processed     Boolean  @default(false)
+
+  createdAt     DateTime @default(now())
+}
