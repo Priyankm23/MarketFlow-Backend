@@ -98,17 +98,33 @@ model DeliveryPartner {
 }
 
 model Vendor {
-  id          String       @id @default(uuid())
-  userId      String       @unique
-  businessName String
-  status      VendorStatus @default(PENDING)
+  id               String       @id @default(uuid())
+  userId           String       @unique
+  businessName     String
+  status           VendorStatus @default(PENDING)
 
-  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  products    Product[]
-  orders      Order[]
+  // What they sell
+  storeCategory    String       
 
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  // Legal & Compliance
+  taxId            String?      // Optional at DB level, but we can enforce it in Zod validation if needed
+  govIdUrl         String       
+  businessDocUrl   String       
+  
+  // Physical Business Location
+  addressLine1     String
+  addressLine2     String?
+  city             String
+  state            String
+  country          String
+  pincode          String
+
+  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  products         Product[]
+  orders           Order[]
+
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
 }
 
 model Category {

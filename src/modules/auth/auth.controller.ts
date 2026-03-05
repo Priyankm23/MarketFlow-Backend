@@ -1,21 +1,26 @@
-import { Request, Response } from 'express';
-import { AuthService } from './auth.service.js';
-import { env } from '../../config/env.js';
+import { Request, Response } from "express";
+import { AuthService } from "./auth.service.js";
+import { env } from "../../config/env.js";
 
-const COOKIE_OPTIONS = {
+const getCookieOptions = (expiresAt: Date) => ({
   httpOnly: true,
-  secure: env.NODE_ENV === 'production',
-  sameSite: 'strict' as const,
-  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days (Should match REFRESH_TOKEN_EXPIRES_IN)
-};
+  secure: env.NODE_ENV === "production",
+  sameSite: "strict" as const,
+  expires: expiresAt,
+});
 
 export class AuthController {
   static async register(req: Request, res: Response) {
-    const { accessToken, refreshToken, user } = await AuthService.register(req.body);
+    const { accessToken, refreshToken, sessionExpiresAt, user } =
+      await AuthService.register(req.body);
 
-    res.cookie('refreshToken', refreshToken, COOKIE_OPTIONS);
+    res.cookie(
+      "refreshToken",
+      refreshToken,
+      getCookieOptions(sessionExpiresAt),
+    );
     res.status(201).json({
-      status: 'success',
+      status: "success",
       data: {
         accessToken,
         user,
@@ -24,11 +29,16 @@ export class AuthController {
   }
 
   static async login(req: Request, res: Response) {
-    const { accessToken, refreshToken, user } = await AuthService.login(req.body);
+    const { accessToken, refreshToken, sessionExpiresAt, user } =
+      await AuthService.login(req.body);
 
-    res.cookie('refreshToken', refreshToken, COOKIE_OPTIONS);
+    res.cookie(
+      "refreshToken",
+      refreshToken,
+      getCookieOptions(sessionExpiresAt),
+    );
     res.status(200).json({
-      status: 'success',
+      status: "success",
       data: {
         accessToken,
         user,
@@ -38,11 +48,23 @@ export class AuthController {
 
   static async refreshToken(req: Request, res: Response) {
     const incomingToken = req.cookies.refreshToken;
-    const { accessToken, refreshToken, user } = await AuthService.refreshToken(incomingToken);
+    if (!incomingToken) {
+      res
+        .status(401)
+        .json({ status: "error", message: "No refresh token provided" });
+      return;
+    }
 
-    res.cookie('refreshToken', refreshToken, COOKIE_OPTIONS);
+    const { accessToken, refreshToken, sessionExpiresAt, user } =
+      await AuthService.refreshToken(incomingToken);
+
+    res.cookie(
+      "refreshToken",
+      refreshToken,
+      getCookieOptions(sessionExpiresAt),
+    );
     res.status(200).json({
-      status: 'success',
+      status: "success",
       data: {
         accessToken,
         user,
@@ -55,10 +77,10 @@ export class AuthController {
     if (token) {
       await AuthService.logout(token);
     }
-    res.clearCookie('refreshToken');
+    res.clearCookie("refreshToken");
     res.status(200).json({
-      status: 'success',
-      message: 'Logged out successfully',
+      status: "success",
+      message: "Logged out successfully",
     });
   }
 }

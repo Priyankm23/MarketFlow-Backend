@@ -1,15 +1,19 @@
-import { prisma } from '../../db/prisma.js';
-import { ApiError } from '../../core/errors/ApiError.js';
-import { hashPassword, comparePassword } from '../../core/utils/password.js';
-import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../../core/utils/jwt.js';
-import { RegisterInput, LoginInput } from './auth.types.js';
-import { env } from '../../config/env.js';
+import { prisma } from "../../db/prisma.js";
+import { ApiError } from "../../core/errors/ApiError.js";
+import { hashPassword, comparePassword } from "../../core/utils/password.js";
+import {
+  generateAccessToken,
+  generateRefreshToken,
+  verifyRefreshToken,
+} from "../../core/utils/jwt.js";
+import { RegisterInput, LoginInput } from "./auth.types.js";
+import { env } from "../../config/env.js";
 
 // MS dependency mapping logic for calculating expiresAt simply
 const msToNum = (val: string): number => {
-  if (val.endsWith('m')) return parseInt(val) * 60 * 1000;
-  if (val.endsWith('h')) return parseInt(val) * 60 * 60 * 1000;
-  if (val.endsWith('d')) return parseInt(val) * 24 * 60 * 60 * 1000;
+  if (val.endsWith("m")) return parseInt(val) * 60 * 1000;
+  if (val.endsWith("h")) return parseInt(val) * 60 * 60 * 1000;
+  if (val.endsWith("d")) return parseInt(val) * 24 * 60 * 60 * 1000;
   return parseInt(val);
 };
 
@@ -20,7 +24,7 @@ export class AuthService {
     });
 
     if (existingUser) {
-      throw new ApiError(409, 'Email already in use');
+      throw new ApiError(409, "Email already in use");
     }
 
     const hashedPassword = await hashPassword(data.password);
@@ -43,16 +47,16 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new ApiError(401, 'Invalid credentials');
+      throw new ApiError(401, "Invalid credentials");
     }
 
     const isMatch = await comparePassword(data.password, user.passwordHash);
     if (!isMatch) {
-      throw new ApiError(401, 'Invalid credentials');
+      throw new ApiError(401, "Invalid credentials");
     }
 
     if (!user.isActive) {
-      throw new ApiError(403, 'Account is inactive or banned');
+      throw new ApiError(403, "Account is inactive or banned");
     }
 
     return this.createSessionAndTokens(user.id, user.role);
@@ -63,7 +67,7 @@ export class AuthService {
     try {
       payload = verifyRefreshToken(token);
     } catch (e) {
-      throw new ApiError(401, 'Invalid refresh token');
+      throw new ApiError(401, "Invalid refresh token");
     }
 
     const session = await prisma.session.findUnique({
@@ -72,7 +76,7 @@ export class AuthService {
     });
 
     if (!session || session.refreshToken !== token) {
-      throw new ApiError(401, 'Session invalid or intercepted');
+      throw new ApiError(401, "Session invalid or intercepted");
     }
 
     if (session.isRevoked) {
@@ -81,11 +85,14 @@ export class AuthService {
         where: { userId: session.userId },
         data: { isRevoked: true },
       });
-      throw new ApiError(401, 'Token reuse detected. All sessions revoked for security.');
+      throw new ApiError(
+        401,
+        "Token reuse detected. All sessions revoked for security.",
+      );
     }
 
     if (new Date() > session.expiresAt) {
-      throw new ApiError(401, 'Refresh token expired');
+      throw new ApiError(401, "Refresh token expired");
     }
 
     // Rotate: Revoke the old token and create a new session
@@ -94,7 +101,11 @@ export class AuthService {
       data: { isRevoked: true },
     });
 
-    return this.createSessionAndTokens(session.userId, session.user.role);
+    return this.createSessionAndTokens(
+      session.userId,
+      session.user.role,
+      session.expiresAt,
+    );
   }
 
   static async logout(token: string) {
@@ -109,19 +120,28 @@ export class AuthService {
     }
   }
 
-  private static async createSessionAndTokens(userId: string, role: string) {
+  private static async createSessionAndTokens(
+    userId: string,
+    role: string,
+    existingExpiresAt?: Date,
+  ) {
     const accessToken = generateAccessToken({ userId, role });
-    
+
     // Create new session entity FIRST without token to get session ID
     const session = await prisma.session.create({
       data: {
         userId,
-        expiresAt: new Date(Date.now() + msToNum(env.REFRESH_TOKEN_EXPIRES_IN)),
-        refreshToken: '', // Placeholder
+        expiresAt:
+          existingExpiresAt ||
+          new Date(Date.now() + msToNum(env.REFRESH_TOKEN_EXPIRES_IN)),
+        refreshToken: "", // Placeholder
       },
     });
 
-    const refreshToken = generateRefreshToken({ userId, sessionId: session.id });
+    const refreshToken = generateRefreshToken({
+      userId,
+      sessionId: session.id,
+    });
 
     // Update session with the real token
     await prisma.session.update({
@@ -132,10 +152,11 @@ export class AuthService {
     return {
       accessToken,
       refreshToken,
+      sessionExpiresAt: session.expiresAt,
       user: {
         id: userId,
         role,
-      }
+      },
     };
   }
 }

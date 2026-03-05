@@ -27,4 +27,8 @@ export const env = {
 
   REFRESH_TOKEN_EXPIRES_IN: (process.env.REFRESH_TOKEN_EXPIRES_IN ??
     "7d") as StringValue,
+
+  CLOUDINARY_CLOUD_NAME: getEnvVariable("CLOUDINARY_CLOUD_NAME"),
+  CLOUDINARY_API_KEY: getEnvVariable("CLOUDINARY_API_KEY"),
+  CLOUDINARY_API_SECRET: getEnvVariable("CLOUDINARY_API_SECRET"),
 };
