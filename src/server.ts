@@ -1,6 +1,7 @@
 import app from "./app.js";
 import { prisma } from "./db/prisma.js";
 import { env } from "./config/env.js";
+import { cleanupSessions } from "./jobs/cleanupSessions.js";
 
 async function startServer() {
   try {
@@ -12,6 +13,8 @@ async function startServer() {
         `Server is running on port ${env.PORT} in ${env.NODE_ENV} mode`,
       );
     });
+
+    cleanupSessions();
   } catch (error) {
     console.error("Failed to start server:", error);
     process.exit(1);
