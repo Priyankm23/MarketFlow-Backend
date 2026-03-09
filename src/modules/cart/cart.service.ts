@@ -70,6 +70,7 @@ export class CartService {
         enrichedItems.push({
           productId: liveProduct.id,
           name: liveProduct.name,
+          vendorId: liveProduct.vendorId,
           vendorName: liveProduct.vendor.businessName,
           price: Number(liveProduct.price),
           stock: liveProduct.stock,
