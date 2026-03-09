@@ -9,6 +9,7 @@ import userRoutes from "./modules/users/user.routes.js";
 import vendorRoutes from "./modules/vendors/vendor.routes.js";
 import adminRoutes from "./modules/admin/admin.routes.js";
 import productRoutes from "./modules/products/product.routes.js";
+import { cartRoutes } from "./modules/cart/cart.routes.js";
 
 const app = express();
 
@@ -29,6 +30,7 @@ app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/vendors", vendorRoutes);
 app.use("/api/v1/admin", adminRoutes);
 app.use("/api/v1/products", productRoutes);
+app.use("/api/v1/cart", cartRoutes);
 
 // Health Check endpoint
 app.get("/health", (_req, res) => {
