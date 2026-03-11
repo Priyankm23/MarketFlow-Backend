@@ -86,8 +86,8 @@ export class ProductService {
       whereClause.category = {
         name: {
           equals: filters.categoryName,
-          mode: 'insensitive' // case-insensitive match (e.g., "electronics" matches "Electronics")
-        }
+          mode: "insensitive", // case-insensitive match (e.g., "electronics" matches "Electronics")
+        },
       };
     }
 
@@ -95,8 +95,8 @@ export class ProductService {
       whereClause.vendor = {
         businessName: {
           equals: filters.businessName,
-          mode: 'insensitive'
-        }
+          mode: "insensitive",
+        },
       };
     }
 
@@ -124,8 +124,8 @@ export class ProductService {
       },
     };
 
-    // Cache the result for 5 minutes (300 seconds)
-    await redis.setex(cacheKey, 300, JSON.stringify(result));
+    // Cache the result for 10 minutes (300 seconds)
+    await redis.setex(cacheKey, 600, JSON.stringify(result));
 
     return result;
   }

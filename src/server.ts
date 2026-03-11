@@ -2,6 +2,7 @@ import app from "./app.js";
 import { prisma } from "./db/prisma.js";
 import { env } from "./config/env.js";
 import { cleanupSessions } from "./jobs/cleanupSessions.js";
+import { runInventoryCleanup } from "./jobs/inventoryCleanup.js";
 
 async function startServer() {
   try {
@@ -15,6 +16,14 @@ async function startServer() {
     });
 
     cleanupSessions();
+
+    // Check for expired inventory reservations every minute
+    setInterval(
+      () => {
+        runInventoryCleanup();
+      },
+      60 * 60 * 1000,
+    );
   } catch (error) {
     console.error("Failed to start server:", error);
     process.exit(1);

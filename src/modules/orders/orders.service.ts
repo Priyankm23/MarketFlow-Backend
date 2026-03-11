@@ -24,20 +24,52 @@ export class OrderService {
       return acc;
     }, {} as GroupedCart);
 
-    // Create a transaction to build orders & clear cart
+    // Sort Product IDs to avoid deadlocks when locking
+    const productIds = cart.items.map((item) => item.productId).sort();
+
+    // Create a transaction to lock inventory, build orders, & clear cart
     const finalOrders = await prisma.$transaction(async (tx) => {
+      // 1. Lock Products (Row-Level Locking to prevent race conditions)
+      const lockedProducts = await tx.$queryRaw<
+        Array<{ id: string; stock: number }>
+      >`
+        SELECT id, stock FROM "Product"
+        WHERE id IN (${Prisma.join(productIds)})
+        FOR UPDATE
+      `;
+
+      const stockMap = lockedProducts.reduce(
+        (acc, p) => {
+          acc[p.id] = p.stock;
+          return acc;
+        },
+        {} as Record<string, number>,
+      );
+
+      // 2. Validate Stock
+      for (const item of cart.items) {
+        const available = stockMap[item.productId] || 0;
+        if (available < item.quantity) {
+          throw new ApiError(
+            400,
+            `Insufficient stock for product ${item.productId}`,
+          );
+        }
+      }
+
       const createdOrders = [];
+      const expirationTime = new Date(Date.now() + 15 * 60 * 1000); // 15 mins from now
 
       for (const vendorId of Object.keys(itemsByVendor)) {
         const vendorItems = itemsByVendor[vendorId];
-        const initialStatus = OrderStatus.CREATED;
+        const initialStatus = OrderStatus.PAYMENT_PENDING;
 
         const vendorTotal = vendorItems.reduce(
           (sum, item) => sum + item.itemTotal,
           0,
         );
 
-        // 1. Create the order
+        // 3. Create the order
         const order = await tx.order.create({
           data: {
             userId,
@@ -52,12 +84,11 @@ export class OrderService {
                 price: item.price,
               })),
             },
-            // Also create the first audit event automatically
             events: {
               create: [
                 {
                   status: initialStatus,
-                  note: "Order placed from Cart",
+                  note: "Order placed, payment pending. Inventory locked.",
                 },
               ],
             },
@@ -66,6 +97,24 @@ export class OrderService {
             items: true,
           },
         });
+
+        // 4. Decrement Stock & Create Inventory Reservations
+        for (const item of vendorItems) {
+          await tx.product.update({
+            where: { id: item.productId },
+            data: { stock: { decrement: item.quantity } },
+          });
+
+          await tx.inventoryReservation.create({
+            data: {
+              orderId: order.id,
+              productId: item.productId,
+              quantity: item.quantity,
+              expiresAt: expirationTime,
+              status: "RESERVED",
+            },
+          });
+        }
 
         createdOrders.push(order);
       }
