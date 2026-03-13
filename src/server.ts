@@ -22,7 +22,7 @@ async function startServer() {
       () => {
         runInventoryCleanup();
       },
-      60 * 60 * 1000,
+      60 * 5 * 1000,
     );
   } catch (error) {
     console.error("Failed to start server:", error);
