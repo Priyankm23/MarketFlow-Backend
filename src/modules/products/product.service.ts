@@ -13,6 +13,7 @@ export interface CreateProductData {
   price: string | number;
   stock: string | number;
   imageUrl?: string;
+  imageUrls?: string[];
   imagePublicId?: string;
 }
 
@@ -52,6 +53,7 @@ export class ProductService {
         price: data.price,
         stock: parseInt(data.stock as string, 10),
         imageUrl: data.imageUrl,
+        imageUrls: data.imageUrls ?? (data.imageUrl ? [data.imageUrl] : []),
         imagePublicId: data.imagePublicId,
       },
     });
@@ -145,6 +147,25 @@ export class ProductService {
     }
 
     return product;
+  }
+
+  static async getProductsByCategoryName(categoryName: string) {
+    return prisma.product.findMany({
+      where: {
+        isActive: true,
+        category: {
+          name: {
+            equals: categoryName,
+            mode: "insensitive",
+          },
+        },
+      },
+      include: {
+        category: { select: { id: true, name: true } },
+        vendor: { select: { businessName: true, id: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
   }
 
   static async createCategory(name: string) {

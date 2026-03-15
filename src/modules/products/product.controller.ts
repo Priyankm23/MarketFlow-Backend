@@ -4,17 +4,24 @@ import { uploadToCloudinary } from "../../core/utils/cloudinary.js";
 
 export class ProductController {
   static async createProduct(req: Request, res: Response) {
-    let imageUrl: string | undefined = undefined;
+    let imageUrls: string[] = [];
 
-    // Handle optional image upload
-    if (req.file) {
-      // Stream buffer to Cloudinary
-      imageUrl = await uploadToCloudinary(req.file.buffer, "products");
+    if (req.files && !Array.isArray(req.files)) {
+      const productImages = req.files["images"] ?? [];
+      const legacyImage = req.files["image"] ?? [];
+      const filesToUpload = [...productImages, ...legacyImage];
+
+      if (filesToUpload.length > 0) {
+        imageUrls = await Promise.all(
+          filesToUpload.map((file) => uploadToCloudinary(file.buffer, "products")),
+        );
+      }
     }
 
     const setProductData = {
       ...req.body,
-      imageUrl,
+      imageUrl: imageUrls[0],
+      imageUrls,
     };
 
     const product = await ProductService.createProduct(
@@ -38,8 +45,39 @@ export class ProductController {
     res.status(200).json({ status: "success", ...products });
   }
 
+  static async getProductsByCategoryName(req: Request, res: Response) {
+    const rawCategoryName = Array.isArray(req.params.categoryName)
+      ? req.params.categoryName[0]
+      : req.params.categoryName;
+    const categoryName = rawCategoryName?.trim();
+
+    if (!categoryName) {
+      res.status(400).json({ status: "fail", message: "Category name is required" });
+      return;
+    }
+
+    const products = await ProductService.getProductsByCategoryName(categoryName);
+    res.status(200).json({
+      status: "success",
+      data: products,
+      meta: {
+        total: products.length,
+        categoryName,
+      },
+    });
+  }
+
   static async getProductById(req: Request, res: Response) {
-    const product = await ProductService.getProductById(req.params.id);
+    const productId = Array.isArray(req.params.id)
+      ? req.params.id[0]
+      : req.params.id;
+
+    if (!productId) {
+      res.status(400).json({ status: "fail", message: "Product ID is required" });
+      return;
+    }
+
+    const product = await ProductService.getProductById(productId);
     res.status(200).json({ status: "success", data: product });
   }
 

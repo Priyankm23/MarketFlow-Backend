@@ -4,6 +4,7 @@ import { ApiError } from "../../core/errors/ApiError.js";
 import { OrderStatus, Prisma } from "../../../generated/prisma/index.js";
 import { OrderStateMachine } from "./orderStateMachine.js";
 import { CartService } from "../cart/cart.service.js";
+import { DeliveryService } from "../delivery/delivery.service.js";
 
 export class OrderService {
   /**
@@ -148,9 +149,9 @@ export class OrderService {
     // Validate the transition
     OrderStateMachine.validateTransition(order.status, newStatus);
 
-    return prisma.$transaction(async (tx) => {
+    const updatedOrder = await prisma.$transaction(async (tx) => {
       // 1. Update the order
-      const updatedOrder = await tx.order.update({
+      const updated = await tx.order.update({
         where: { id: orderId },
         data: { status: newStatus },
       });
@@ -164,8 +165,17 @@ export class OrderService {
         },
       });
 
-      return updatedOrder;
+      return updated;
     });
+
+    // 3. Post-Transition Triggers
+    if (newStatus === OrderStatus.PACKED) {
+      // Automatically attempt to assign a delivery partner
+      // We don't block the response, we catch & log if it fails.
+      DeliveryService.assignOrderToPartner(orderId).catch(console.error);
+    }
+
+    return updatedOrder;
   }
 
   static async getCustomerOrders(userId: string) {

@@ -145,6 +145,7 @@ model Product {
   isActive     Boolean  @default(true)
 
   imageUrl     String?
+  imageUrls    String[] @default([])
   imagePublicId String?
 
   vendor       Vendor   @relation(fields: [vendorId], references: [id])
