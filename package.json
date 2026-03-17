@@ -6,7 +6,8 @@
   "scripts": {
     "test:db": "tsx src/tests/db-tests.ts",
     "dev": "tsx watch src/server.ts",
-    "test:type": "tsx src/modules/auth/auth.types.ts"
+    "test:type": "tsx src/modules/auth/auth.types.ts",
+    "seed:electronics": "tsx src/scripts/seedElectronicsProducts.ts"
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",

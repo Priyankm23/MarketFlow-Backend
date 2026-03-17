@@ -40,3 +40,7 @@ docs
 tests
 
 prisma/migrations
+
+public/
+
+scripts/

@@ -154,6 +154,7 @@ model Product {
   cartItems    CartItem[]
   orderItems   OrderItem[]
   reservations InventoryReservation[]
+  offers       Offer[]
 
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -161,6 +162,25 @@ model Product {
   @@index([vendorId])
   @@index([categoryId])
   @@index([price])
+}
+
+model Offer {
+  id                 String   @id @default(uuid())
+  productId          String
+  offerName          String
+  discountPercentage Int
+  couponCode         String?
+  termsAndConditions String?
+  isActive           Boolean  @default(true)
+
+  product            Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([productId])
+  @@index([isActive])
+  @@unique([productId, couponCode])
 }
 
 model Cart {
