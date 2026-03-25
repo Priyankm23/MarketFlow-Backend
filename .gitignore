@@ -44,3 +44,5 @@ prisma/migrations
 public/
 
 scripts/
+
+mock/

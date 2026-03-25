@@ -1,5 +1,5 @@
-import { z } from 'zod';
-import { Role } from '../../../generated/prisma/index.js';
+import { z } from "zod";
+import { Role } from "../../../generated/prisma/index.js";
 
 export const registerSchema = z.object({
   body: z.object({
@@ -19,6 +19,6 @@ export const loginSchema = z.object({
 
 export const refreshTokenSchema = z.object({
   cookies: z.object({
-    refreshToken: z.string({ required_error: 'Refresh token missing' }),
+    refreshToken: z.string({ required_error: "Refresh token missing" }),
   }),
 });

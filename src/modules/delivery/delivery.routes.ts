@@ -5,11 +5,18 @@ import { requireRole } from "../../core/middlewares/requireRole.js";
 
 export const deliveryRoutes = Router();
 
+deliveryRoutes.get(
+  "/profile",
+  requireAuth,
+  requireRole(["DELIVERY_PARTNER"]),
+  DeliveryController.getProfile,
+);
+
 // Partners can update their coverage areas and capacity
 deliveryRoutes.post(
   "/profile", 
   requireAuth, 
-  requireRole("DELIVERY_PARTNER"), 
+  requireRole(["DELIVERY_PARTNER"]), 
   DeliveryController.updateProfile
 );
 
@@ -17,7 +24,7 @@ deliveryRoutes.post(
 deliveryRoutes.post(
   "/orders/:orderId/complete", 
   requireAuth, 
-  requireRole("DELIVERY_PARTNER"), 
+  requireRole(["DELIVERY_PARTNER"]), 
   DeliveryController.markDelivered
 );
 
@@ -25,6 +32,6 @@ deliveryRoutes.post(
 deliveryRoutes.post(
   "/orders/:orderId/assign", 
   requireAuth, 
-  requireRole("ADMIN"), 
+  requireRole(["ADMIN"]), 
   DeliveryController.triggerAssignment
 );

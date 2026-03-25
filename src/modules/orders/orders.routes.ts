@@ -6,6 +6,7 @@ import { validate } from "../../core/middlewares/validate.js";
 import {
   checkoutSchema,
   updateOrderStatusSchema,
+  vendorMarkReadySchema,
 } from "./orders.validation.js";
 
 const router = Router();
@@ -26,11 +27,24 @@ router.get(
   OrderController.getMyOrders,
 );
 
+router.get(
+  "/my-orders/last-shipping-address",
+  requireRole(["CUSTOMER"]),
+  OrderController.getLastShippingAddress,
+);
+
 // --- Vendor Routes ---
 router.get(
   "/vendor-orders",
   requireRole(["VENDOR"]),
   OrderController.getVendorOrders,
+);
+
+router.post(
+  "/:orderId/ready-for-delivery",
+  requireRole(["VENDOR"]),
+  validate(vendorMarkReadySchema),
+  OrderController.markReadyForDelivery,
 );
 
 // --- Shared (Customer & Vendor) ---

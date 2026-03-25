@@ -40,7 +40,7 @@ interface CreateProductOfferInput {
 
 type ProductImageInput = Express.Multer.File | Express.Multer.File[];
 
-const PRODUCTS_CACHE_KEY = "products:catalog";
+const PRODUCTS_CACHE_KEY = "products:catalog:v2";
 
 export class VendorService {
   private static async invalidateProductCache() {

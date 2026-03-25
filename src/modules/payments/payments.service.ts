@@ -18,6 +18,13 @@ export class PaymentService {
       throw new ApiError(403, "Unauthorized access to this order");
     }
 
+    if (order.status === OrderStatus.CONFIRMED) {
+      throw new ApiError(
+        400,
+        "This order is confirmed for Cash on Delivery and does not require online payment",
+      );
+    }
+
     if (order.status !== OrderStatus.PAYMENT_PENDING) {
       throw new ApiError(
         400,

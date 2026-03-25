@@ -13,7 +13,9 @@ export class ProductController {
 
       if (filesToUpload.length > 0) {
         imageUrls = await Promise.all(
-          filesToUpload.map((file) => uploadToCloudinary(file.buffer, "products")),
+          filesToUpload.map((file) =>
+            uploadToCloudinary(file.buffer, "products"),
+          ),
         );
       }
     }
@@ -52,11 +54,14 @@ export class ProductController {
     const categoryName = rawCategoryName?.trim();
 
     if (!categoryName) {
-      res.status(400).json({ status: "fail", message: "Category name is required" });
+      res
+        .status(400)
+        .json({ status: "fail", message: "Category name is required" });
       return;
     }
 
-    const products = await ProductService.getProductsByCategoryName(categoryName);
+    const products =
+      await ProductService.getProductsByCategoryName(categoryName);
     res.status(200).json({
       status: "success",
       data: products,
@@ -67,13 +72,23 @@ export class ProductController {
     });
   }
 
+  static async getTrendingProduct(req: Request, res: Response) {
+    const trendingProducts = await ProductService.getTrendingProduct();
+    res.status(200).json({
+      status: "success",
+      products: trendingProducts,
+    });
+  }
+
   static async getProductById(req: Request, res: Response) {
     const productId = Array.isArray(req.params.id)
       ? req.params.id[0]
       : req.params.id;
 
     if (!productId) {
-      res.status(400).json({ status: "fail", message: "Product ID is required" });
+      res
+        .status(400)
+        .json({ status: "fail", message: "Product ID is required" });
       return;
     }
 

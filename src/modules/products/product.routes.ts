@@ -23,8 +23,13 @@ router.get("/categories", ProductController.getCategories);
 // --- Products ---
 
 // Public endpoints to browse products (Cached via Redis)
+router.get("/trending", ProductController.getTrendingProduct);
+
 router.get("/", ProductController.getProducts);
-router.get("/category/:categoryName", ProductController.getProductsByCategoryName);
+router.get(
+  "/category/:categoryName",
+  ProductController.getProductsByCategoryName,
+);
 router.get("/:id", ProductController.getProductById);
 
 // Protected endpoints for vendors

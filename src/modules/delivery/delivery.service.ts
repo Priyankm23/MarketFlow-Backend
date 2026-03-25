@@ -1,9 +1,31 @@
 import { prisma } from "../../db/prisma.js";
 import { ApiError } from "../../core/errors/ApiError.js";
-import { OrderStatus } from "../../../generated/prisma/index.js";
-import { OrderService } from "../orders/orders.service.js"; // We'll trigger order status updates
+import { OrderStatus, Prisma } from "../../../generated/prisma/index.js";
 
 export class DeliveryService {
+  static async getPartnerProfile(userId: string) {
+    const partner = await prisma.deliveryPartner.findUnique({
+      where: { userId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            role: true,
+          },
+        },
+      },
+    });
+
+    if (!partner) {
+      throw new ApiError(404, "Delivery partner profile not found");
+    }
+
+    return partner;
+  }
+
   /**
    * Register a user as a delivery partner
    */
@@ -35,7 +57,7 @@ export class DeliveryService {
    * Triggered when an order is packed by the vendor.
    */
   static async assignOrderToPartner(orderId: string) {
-    return prisma.$transaction(async (tx) => {
+    return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // 1. Get the Order
       const order = await tx.order.findUnique({
         where: { id: orderId },
@@ -83,6 +105,9 @@ export class DeliveryService {
       availablePartners.sort((a, b) => a.activeDeliveries - b.activeDeliveries);
 
       const selectedPartner = availablePartners[0];
+      if (!selectedPartner) {
+        throw new ApiError(500, "Failed to select a delivery partner");
+      }
 
       // 5. Assignment: Link partner to order, increment active deliveries
       await tx.order.update({
@@ -118,7 +143,7 @@ export class DeliveryService {
    * Called by the delivery partner when they successfully deliver the item.
    */
   static async completeDelivery(orderId: string, partnerUserId: string) {
-    return prisma.$transaction(async (tx) => {
+    return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const partner = await tx.deliveryPartner.findUnique({
         where: { userId: partnerUserId },
       });

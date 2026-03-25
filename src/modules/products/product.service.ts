@@ -3,7 +3,7 @@ import { redis } from "../../config/redis.js";
 import { ApiError } from "../../core/errors/ApiError.js";
 import { Prisma } from "../../../generated/prisma/index.js";
 
-const PRODUCTS_CACHE_KEY = "products:catalog";
+const PRODUCTS_CACHE_KEY = "products:catalog:v2";
 
 export interface CreateProductData {
   vendorId: string;
@@ -12,6 +12,10 @@ export interface CreateProductData {
   description: string;
   price: string | number;
   stock: string | number;
+  reviewCount?: string | number;
+  rating?: string | number;
+  warranty?: string;
+  returnPolicy?: string;
   imageUrl?: string;
   imageUrls?: string[];
   imagePublicId?: string;
@@ -52,6 +56,16 @@ export class ProductService {
         description: data.description,
         price: data.price,
         stock: parseInt(data.stock as string, 10),
+        reviewCount:
+          data.reviewCount !== undefined
+            ? parseInt(String(data.reviewCount), 10)
+            : undefined,
+        rating:
+          data.rating !== undefined
+            ? parseFloat(String(data.rating))
+            : undefined,
+        warranty: data.warranty?.trim() || undefined,
+        returnPolicy: data.returnPolicy?.trim() || undefined,
         imageUrl: data.imageUrl,
         imageUrls: data.imageUrls ?? (data.imageUrl ? [data.imageUrl] : []),
         imagePublicId: data.imagePublicId,
@@ -165,6 +179,19 @@ export class ProductService {
         vendor: { select: { businessName: true, id: true } },
       },
       orderBy: { createdAt: "desc" },
+    });
+  }
+
+  static async getTrendingProduct() {
+    return prisma.product.findMany({
+      where: {
+        rating: { gt: 3.5 },
+      },
+      include: {
+        category: { select: { id: true, name: true } },
+        vendor: { select: { businessName: true, id: true } },
+      },
+      orderBy: { rating: "desc" },
     });
   }
 

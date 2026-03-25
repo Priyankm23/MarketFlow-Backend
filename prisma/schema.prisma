@@ -142,6 +142,10 @@ model Product {
   description  String
   price        Decimal
   stock        Int
+  reviewCount  Int      @default(0)
+  rating       Float    @default(0)
+  warranty     String?
+  returnPolicy String?
   isActive     Boolean  @default(true)
 
   imageUrl     String?
@@ -214,6 +218,14 @@ model Order {
   status      OrderStatus
   totalAmount Decimal
   deliveryPincode String
+  shippingFullName String?
+  shippingEmail String?
+  shippingPhoneNumber String?
+  shippingAddressLine1 String?
+  shippingAddressLine2 String?
+  shippingCity String?
+  shippingState String?
+  shippingPostalCode String?
 
   user        User         @relation(fields: [userId], references: [id])
   vendor      Vendor       @relation(fields: [vendorId], references: [id])
