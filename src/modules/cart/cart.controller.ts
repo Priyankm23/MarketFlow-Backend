@@ -14,14 +14,29 @@ export class CartController {
   }
 
   static async updateItem(req: Request, res: Response) {
-    const { productId } = req.params;
+    const productId = Array.isArray(req.params.productId)
+      ? req.params.productId[0]
+      : req.params.productId;
     const { quantity } = req.body;
+    if (!productId) {
+      res.status(400).json({ status: "fail", message: "Product ID required" });
+      return;
+    }
+
     const cart = await CartService.updateItemQuantity(req.user!.userId, productId, quantity);
     res.status(200).json({ status: "success", data: cart });
   }
 
   static async removeItem(req: Request, res: Response) {
-    const { productId } = req.params;
+    const productId = Array.isArray(req.params.productId)
+      ? req.params.productId[0]
+      : req.params.productId;
+
+    if (!productId) {
+      res.status(400).json({ status: "fail", message: "Product ID required" });
+      return;
+    }
+
     const cart = await CartService.removeItem(req.user!.userId, productId);
     res.status(200).json({ status: "success", data: cart });
   }

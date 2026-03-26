@@ -19,6 +19,6 @@ export const loginSchema = z.object({
 
 export const refreshTokenSchema = z.object({
   cookies: z.object({
-    refreshToken: z.string({ required_error: "Refresh token missing" }),
+    refreshToken: z.string().min(1, "Refresh token missing"),
   }),
 });

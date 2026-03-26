@@ -47,15 +47,15 @@ export class CartService {
 
     // Fetch live product data from DB
     const productIds = items.map((item) => item.productId);
-    const liveProducts = await prisma.product.findMany({
+    const liveProducts = (await prisma.product.findMany({
       where: { id: { in: productIds }, isActive: true },
       include: {
         vendor: { select: { businessName: true } },
       },
-    });
+    })) as any[];
 
-    const productMap = new Map(liveProducts.map((p) => [p.id, p]));
-    const enrichedItems = [];
+    const productMap = new Map(liveProducts.map((p: any) => [p.id, p]));
+    const enrichedItems: any[] = [];
     let totalAmount = 0;
     let cartModified = false; // Tracks if we need to auto-correct the cart
 
@@ -114,7 +114,7 @@ export class CartService {
         // Sync adjustments to DB
         const dbCart = await prisma.cart.findUnique({ where: { userId }});
         if (dbCart) {
-          await prisma.$transaction(async (tx) => {
+          await prisma.$transaction(async (tx: any) => {
             // Clear existing db items
             await tx.cartItem.deleteMany({ where: { cartId: dbCart.id } });
             // Re-insert physically valid items (matching what Redis holds)

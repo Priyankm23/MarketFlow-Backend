@@ -92,7 +92,7 @@ export class OrderService {
               : OrderStatus.PAYMENT_PENDING;
 
           const vendorTotal = vendorItems.reduce(
-            (sum, item) => sum + item.itemTotal,
+            (sum: number, item: any) => sum + item.itemTotal,
             0,
           );
 
@@ -113,7 +113,7 @@ export class OrderService {
               totalAmount: vendorTotal,
               status: initialStatus,
               items: {
-                create: vendorItems.map((item) => ({
+                create: vendorItems.map((item: any) => ({
                   productId: item.productId,
                   quantity: item.quantity,
                   price: item.price,
