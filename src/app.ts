@@ -16,7 +16,10 @@ import { deliveryRoutes } from "./modules/delivery/delivery.routes.js";
 
 const app = express();
 
-app.use(helmet());
+// Some versions of `helmet` export differently under ESM; handle both shapes.
+const _helmet: any = helmet;
+const helmetMiddleware = _helmet.default ?? _helmet;
+app.use(helmetMiddleware());
 app.use(morgan("dev")); // Request logging
 app.use(
   cors({
