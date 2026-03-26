@@ -32,7 +32,7 @@ export class CartService {
       });
 
       if (dbCart && dbCart.items.length > 0) {
-        items = dbCart.items.map((i) => ({
+        items = dbCart.items.map((i: any) => ({
           productId: i.productId,
           quantity: i.quantity,
         }));
