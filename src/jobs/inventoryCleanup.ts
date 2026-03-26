@@ -1,3 +1,4 @@
+import type { Prisma } from "../../generated/prisma/index.js";
 import { prisma } from "../db/prisma.js";
 
 export const runInventoryCleanup = async () => {
@@ -19,11 +20,13 @@ export const runInventoryCleanup = async () => {
 
     // We process each order cancellation inside a transaction.
     // However, reservations could span multiple orders. Let's group by orderId.
-    const orderIds = [...new Set(expiredReservations.map((r) => r.orderId))];
+    const orderIds = [
+      ...new Set(expiredReservations.map((r: any) => r.orderId)),
+    ];
 
     for (const orderId of orderIds) {
       try {
-        await prisma.$transaction(async (tx) => {
+        await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
           // 1. Get the order
           const order = await tx.order.findUnique({
             where: { id: orderId },
@@ -61,9 +64,9 @@ export const runInventoryCleanup = async () => {
           }
 
           // At this point, the order MUST be PAYMENT_PENDING or CREATED and unpaid. Roll it back.
-          const resToRollback = await tx.inventoryReservation.findMany({
+          const resToRollback = (await tx.inventoryReservation.findMany({
             where: { orderId: orderId, status: "RESERVED" },
-          });
+          })) as any[];
 
           // Restore stock
           for (const res of resToRollback) {

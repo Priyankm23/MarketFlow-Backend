@@ -5,8 +5,15 @@ export class PaymentController {
   // POST /api/payments/:orderId/intent
   static async initiate(req: Request, res: Response, next: NextFunction) {
     try {
-      const { orderId } = req.params;
+      const orderId = Array.isArray(req.params.orderId)
+        ? req.params.orderId[0]
+        : req.params.orderId;
       const userId = req.user!.userId; // Captured from requireAuth middleware
+
+      if (!orderId) {
+        res.status(400).json({ success: false, message: "Order ID is required" });
+        return;
+      }
 
       const intent = await PaymentService.initiatePayment(orderId, userId);
 

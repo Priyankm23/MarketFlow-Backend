@@ -21,7 +21,8 @@ export class OrderStateMachine {
    * Throws an error if invalid.
    */
   static validateTransition(current: OrderStatus, target: OrderStatus) {
-    if (!validTransitions[current].includes(target)) {
+    const next = validTransitions[current] ?? [];
+    if (!next.includes(target)) {
       throw new ApiError(
         400,
         `Invalid order state transition from ${current} to ${target}`
@@ -33,6 +34,7 @@ export class OrderStateMachine {
    * Check if the target transition is allowed without throwing (boolean).
    */
   static canTransition(current: OrderStatus, target: OrderStatus): boolean {
-    return validTransitions[current].includes(target);
+    const next = validTransitions[current] ?? [];
+    return next.includes(target);
   }
 }

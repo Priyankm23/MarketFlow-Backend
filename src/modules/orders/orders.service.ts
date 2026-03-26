@@ -60,7 +60,7 @@ export class OrderService {
       `;
 
         const stockMap = lockedProducts.reduce<Record<string, number>>(
-          (acc, product) => {
+          (acc, product: { id: string; stock: number }) => {
             acc[product.id] = product.stock;
             return acc;
           },

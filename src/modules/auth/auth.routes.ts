@@ -5,7 +5,6 @@ import {
   registerSchema,
   loginSchema,
   refreshTokenSchema,
-  authenticateSchema,
 } from "./auth.validation.js";
 
 const router = Router();
