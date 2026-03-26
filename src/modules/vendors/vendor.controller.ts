@@ -51,6 +51,23 @@ export class VendorController {
     res.status(200).json({ status: "success", data: vendor });
   }
 
+  static async updateLogo(req: Request, res: Response) {
+    if (!req.file) {
+      throw new ApiError(400, "Logo image file is required");
+    }
+
+    if (!req.file.mimetype.startsWith("image/")) {
+      throw new ApiError(400, "Only image files are allowed");
+    }
+
+    const vendor = await VendorService.updateLogo(
+      req.user!.userId,
+      req.file.buffer,
+    );
+
+    res.status(200).json({ status: "success", data: vendor });
+  }
+
   static async updateProductStock(req: Request, res: Response) {
     const rawProductId = req.params.productId;
     const productId = Array.isArray(rawProductId)

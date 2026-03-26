@@ -11,6 +11,15 @@ export class AdminService {
     });
   }
 
+  static async getApprovedVendors() {
+    return prisma.vendor.findMany({
+      where: { status: "APPROVED" },
+      include: {
+        user: { select: { name: true, email: true, phone: true } },
+      },
+    });
+  }
+
   static async reviewVendor(
     vendorId: string,
     status: "APPROVED" | "REJECTED" | "SUSPENDED",
@@ -23,7 +32,7 @@ export class AdminService {
       throw new ApiError(404, "Vendor not found");
     }
 
-    const updatedVendor = await prisma.$transaction(async (tx) => {
+    const updatedVendor = await prisma.$transaction(async (tx: any) => {
       const v = await tx.vendor.update({
         where: { id: vendorId },
         data: { status },

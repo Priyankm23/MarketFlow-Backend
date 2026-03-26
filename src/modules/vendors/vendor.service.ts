@@ -89,6 +89,25 @@ export class VendorService {
     return vendor;
   }
 
+  static async updateLogo(userId: string, logoBuffer: Buffer) {
+    const vendor = await prisma.vendor.findUnique({
+      where: { userId },
+    });
+
+    if (!vendor) {
+      throw new ApiError(404, "Vendor profile not found");
+    }
+
+    const logoUrl = await uploadToCloudinary(logoBuffer, "vendor_logos");
+
+    const updatedVendor = await prisma.vendor.update({
+      where: { id: vendor.id },
+      data: { logoUrl },
+    });
+
+    return updatedVendor;
+  }
+
   static async updateProductStock(
     vendorUserId: string,
     data: UpdateProductStockInput,

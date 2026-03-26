@@ -163,6 +163,57 @@ export class ProductService {
     return product;
   }
 
+  static async rateProduct(productId: string, userId: string, newRating: number) {
+    const updatedProduct = await prisma.$transaction(async (tx: any) => {
+      const product = await tx.product.findUnique({
+        where: { id: productId },
+      });
+
+      if (!product) {
+        throw new ApiError(404, "Product not found");
+      }
+
+      // Upsert the rating for this user and product
+      await tx.productRating.upsert({
+        where: {
+          userId_productId: {
+            userId,
+            productId,
+          },
+        },
+        update: { rating: newRating },
+        create: {
+          userId,
+          productId,
+          rating: newRating,
+        },
+      });
+
+      // Recalculate average rating and review count
+      const aggregates = await tx.productRating.aggregate({
+        where: { productId },
+        _avg: { rating: true },
+        _count: { rating: true },
+      });
+
+      const avgRating = aggregates._avg.rating || 0;
+      const reviewCount = aggregates._count.rating || 0;
+
+      return tx.product.update({
+        where: { id: productId },
+        data: {
+          reviewCount,
+          rating: avgRating,
+        },
+      });
+    });
+
+    await this.invalidateCache();
+    // Invalidate product's individual cache if we add it in the future
+
+    return updatedProduct;
+  }
+
   static async getProductsByCategoryName(categoryName: string) {
     return prisma.product.findMany({
       where: {

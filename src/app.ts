@@ -20,7 +20,11 @@ app.use(helmet());
 app.use(morgan("dev")); // Request logging
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN || "http://localhost:3000",
+    origin:
+      process.env.CORS_ORIGIN ||
+      (process.env.NODE_ENV === "production"
+        ? "https://marketflow-your-one-stop-shop.vercel.app"
+        : "*"),
     credentials: true,
   }),
 );

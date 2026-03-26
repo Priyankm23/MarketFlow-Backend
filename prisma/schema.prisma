@@ -62,6 +62,7 @@ model User {
   sessions      Session[]
   orders        Order[]
   cart          Cart?
+  ratings       ProductRating[]
 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -110,6 +111,7 @@ model Vendor {
   taxId            String?      // Optional at DB level, but we can enforce it in Zod validation if needed
   govIdUrl         String       
   businessDocUrl   String       
+  logoUrl          String?
   
   // Physical Business Location
   addressLine1     String
@@ -159,6 +161,7 @@ model Product {
   orderItems   OrderItem[]
   reservations InventoryReservation[]
   offers       Offer[]
+  ratings      ProductRating[]
 
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -166,6 +169,22 @@ model Product {
   @@index([vendorId])
   @@index([categoryId])
   @@index([price])
+}
+
+model ProductRating {
+  id        String   @id @default(uuid())
+  userId    String
+  productId String
+  rating    Int
+  
+  user      User     @relation(fields: [userId], references: [id])
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, productId])
+  @@index([productId])
 }
 
 model Offer {

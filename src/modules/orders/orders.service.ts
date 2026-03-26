@@ -209,11 +209,11 @@ export class OrderService {
     );
 
     // 3. Post-Transition Triggers
-    if (newStatus === OrderStatus.PACKED) {
-      // Automatically attempt to assign a delivery partner
-      // We don't block the response, we catch & log if it fails.
-      DeliveryService.assignOrderToPartner(orderId).catch(console.error);
-    }
+    // if (newStatus === OrderStatus.PACKED) {
+    //   // Automatically attempt to assign a delivery partner
+    //   // We don't block the response, we catch & log if it fails.
+    //   DeliveryService.assignOrderToPartner(orderId).catch(console.error);
+    // }
 
     return updatedOrder;
   }
@@ -330,10 +330,25 @@ export class OrderService {
       throw new ApiError(403, "Vendor profile not found");
     }
 
-    return prisma.order.findMany({
+    const orders = await prisma.order.findMany({
       where: { vendorId: vendor.id },
       include: {
         user: { select: { name: true, email: true, phone: true } },
+        deliveryPartner: {
+          select: {
+            id: true,
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                phone: true,
+              },
+            },
+            activeDeliveries: true,
+            dailyCapacity: true,
+          },
+        },
         items: {
           include: {
             product: {
@@ -347,6 +362,32 @@ export class OrderService {
         },
       },
       orderBy: { createdAt: "desc" },
+    });
+
+    return orders.map((order: (typeof orders)[number]) => {
+      const latestEvent = order.events[0];
+      const etaMatch = latestEvent?.note
+        ? /(Pickup ETA|Customer delivery ETA|Estimated pickup ETA): (\d+) minutes/i.exec(
+            latestEvent.note,
+          )
+        : null;
+
+      let deliveryStage: "PICKUP" | "LINEHAUL" | "LAST_MILE" | "UNKNOWN" =
+        "UNKNOWN";
+
+      if (latestEvent?.note?.includes("[PICKUP]")) {
+        deliveryStage = "PICKUP";
+      } else if (latestEvent?.note?.includes("[LINEHAUL]")) {
+        deliveryStage = "LINEHAUL";
+      } else if (latestEvent?.note?.includes("[LAST_MILE]")) {
+        deliveryStage = "LAST_MILE";
+      }
+
+      return {
+        ...order,
+        pickupEtaMinutes: etaMatch ? Number(etaMatch[2]) : null,
+        deliveryStage,
+      };
     });
   }
 

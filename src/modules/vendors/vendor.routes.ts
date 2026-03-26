@@ -69,4 +69,11 @@ router.get(
 
 router.get("/profile", VendorController.getProfile);
 
+router.post(
+  "/profile/logo",
+  requireRole(["VENDOR"]),
+  upload.single("logo"),
+  VendorController.updateLogo,
+);
+
 export default router;

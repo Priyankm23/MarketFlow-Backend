@@ -7,14 +7,15 @@ import { reviewVendorSchema } from "./admin.validation.js";
 
 const router = Router();
 
-router.use(requireAuth);
-router.use(requireRole(["ADMIN"]));
+router.get("/vendors/pending",requireAuth, requireRole(["ADMIN"]),AdminController.getPendingVendors);
 
-router.get("/vendors/pending", AdminController.getPendingVendors);
+router.get("/vendors/approved", AdminController.getApprovedVendors);
 router.patch(
   "/vendors/:vendorId/review",
+  requireAuth,
+  requireRole(["ADMIN"]),
   validate(reviewVendorSchema),
-  AdminController.reviewVendor,
+  AdminController.reviewVendor, 
 );
 
 export default router;

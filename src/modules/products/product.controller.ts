@@ -96,6 +96,31 @@ export class ProductController {
     res.status(200).json({ status: "success", data: product });
   }
 
+  static async rateProduct(req: Request, res: Response) {
+    const productId = Array.isArray(req.params.id)
+      ? req.params.id[0]
+      : req.params.id;
+    const { rating } = req.body;
+    const userId = req.user?.userId;
+
+    if (!productId) {
+      res
+        .status(400)
+        .json({ status: "fail", message: "Product ID is required" });
+      return;
+    }
+
+    if (!userId) {
+      res
+        .status(401)
+        .json({ status: "fail", message: "Unauthorized" });
+      return;
+    }
+
+    const updatedProduct = await ProductService.rateProduct(productId, userId, rating);
+    res.status(200).json({ status: "success", data: updatedProduct });
+  }
+
   // --- Categories --- (Usually done via Admin routes, placing here for convenience)
   static async createCategory(req: Request, res: Response) {
     const category = await ProductService.createCategory(req.body.name);

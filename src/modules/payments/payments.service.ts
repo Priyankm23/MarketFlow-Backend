@@ -1,7 +1,11 @@
 import { prisma } from "../../db/prisma.js";
 import { ApiError } from "../../core/errors/ApiError.js";
 import crypto from "crypto";
-import { OrderStatus, PaymentStatus } from "../../../generated/prisma/index.js";
+import {
+  OrderStatus,
+  PaymentStatus,
+  Prisma,
+} from "../../../generated/prisma/index.js";
 
 export class PaymentService {
   /**
@@ -103,25 +107,25 @@ export class PaymentService {
         return { status: "already_paid" };
       }
 
-      await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         // A. Mark Payment as SUCCESS
         await tx.payment.update({
           where: { id: payment.id },
           data: { status: PaymentStatus.SUCCESS },
         });
 
-        // B. Transition Order to PAID permanently
+        // B. Transition Order to CONFIRMED so vendor can proceed to packing flow
         await tx.order.update({
           where: { id: payment.orderId },
-          data: { status: OrderStatus.PAID },
+          data: { status: OrderStatus.CONFIRMED },
         });
 
         // C. Record Audit Log for the Order progression
         await tx.orderEvent.create({
           data: {
             orderId: payment.orderId,
-            status: OrderStatus.PAID,
-            note: `Payment successful successfully logged via webhook. Txn: ${transactionId}`,
+            status: OrderStatus.CONFIRMED,
+            note: `Payment successful via webhook. Order confirmed. Txn: ${transactionId}`,
           },
         });
 
@@ -144,7 +148,7 @@ export class PaymentService {
 
     // 5. Handle Mock Failure Event
     if (type === "payment.failed") {
-      await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         await tx.payment.update({
           where: { id: payment.id },
           data: { status: PaymentStatus.FAILED },
