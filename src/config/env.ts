@@ -31,4 +31,6 @@ export const env = {
   CLOUDINARY_CLOUD_NAME: getEnvVariable("CLOUDINARY_CLOUD_NAME"),
   CLOUDINARY_API_KEY: getEnvVariable("CLOUDINARY_API_KEY"),
   CLOUDINARY_API_SECRET: getEnvVariable("CLOUDINARY_API_SECRET"),
+
+  CORS_ORIGIN: getEnvVariable("CORS_ORIGIN"),
 };

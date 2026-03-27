@@ -23,27 +23,36 @@ app.use(helmetMiddleware());
 app.use(morgan("dev")); // Request logging
 // Configure CORS to explicitly allow the frontend and handle preflight
 const allowedOrigins = new Set<string>();
-if (process.env.CORS_ORIGIN) allowedOrigins.add(process.env.CORS_ORIGIN);
-if (process.env.NODE_ENV === "production") {
-  allowedOrigins.add("https://marketflow-your-one-stop-shop.vercel.app");
-} else {
-  // allow localhost during development
-  allowedOrigins.add("http://localhost:3000");
-  allowedOrigins.add("http://127.0.0.1:3000");
+
+if (process.env.CORS_ORIGIN) {
+  allowedOrigins.add(process.env.CORS_ORIGIN);
 }
+
+// Always allow your frontend explicitly
+allowedOrigins.add("https://marketflow-your-one-stop-shop.vercel.app");
+
+// Allow local dev
+allowedOrigins.add("http://localhost:3000");
+allowedOrigins.add("http://127.0.0.1:3000");
 
 const corsOptions = {
   origin: (
     origin: string | undefined,
     callback: (err: Error | null, allow?: boolean) => void,
   ) => {
-    // allow non-browser requests with no origin (server-to-server, curl)
+    console.log("Incoming origin:", origin); // 🔍 debug
+
     if (!origin) return callback(null, true);
-    if (allowedOrigins.has(origin)) return callback(null, true);
+
+    if (allowedOrigins.has(origin)) {
+      return callback(null, true);
+    }
+
+    console.log("❌ Blocked by CORS:", origin);
     return callback(new Error("CORS origin denied"));
   },
   credentials: true,
-  methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE"],
+  methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"], // ✅ include OPTIONS
   allowedHeaders: [
     "Content-Type",
     "Authorization",
@@ -52,8 +61,24 @@ const corsOptions = {
   ],
   optionsSuccessStatus: 200,
 };
-
 app.use(cors(corsOptions));
+app.options("(.*)", cors(corsOptions));
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+
+  if (origin && allowedOrigins.has(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  }
+
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
+  }
+
+  next();
+});
+
 app.use(express.json());
 app.use(cookieParser());
 
