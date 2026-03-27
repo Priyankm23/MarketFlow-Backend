@@ -28,31 +28,28 @@ if (process.env.CORS_ORIGIN) {
   allowedOrigins.add(process.env.CORS_ORIGIN);
 }
 
-// Always allow your frontend explicitly
+// your frontend
 allowedOrigins.add("https://marketflow-your-one-stop-shop.vercel.app");
 
-// Allow local dev
+// local dev
 allowedOrigins.add("http://localhost:3000");
 allowedOrigins.add("http://127.0.0.1:3000");
 
-const corsOptions = {
-  origin: (
-    origin: string | undefined,
-    callback: (err: Error | null, allow?: boolean) => void,
-  ) => {
-    console.log("Incoming origin:", origin); // 🔍 debug
+const corsOptions: cors.CorsOptions = {
+  origin: (origin, callback) => {
+    console.log("Incoming origin:", origin);
 
     if (!origin) return callback(null, true);
 
     if (allowedOrigins.has(origin)) {
-      return callback(null, true);
+      return callback(null, origin); // ✅ IMPORTANT
     }
 
     console.log("❌ Blocked by CORS:", origin);
     return callback(new Error("CORS origin denied"));
   },
   credentials: true,
-  methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"], // ✅ include OPTIONS
+  methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
   allowedHeaders: [
     "Content-Type",
     "Authorization",
@@ -61,7 +58,14 @@ const corsOptions = {
   ],
   optionsSuccessStatus: 200,
 };
+
+/* =========================
+   ✅ MIDDLEWARE (ORDER MATTERS)
+========================= */
+
 app.use(cors(corsOptions));
+
+// ✅ IMPORTANT FOR VERCEL (NO '*')
 app.options("(.*)", cors(corsOptions));
 
 app.use(cookieParser());
