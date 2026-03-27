@@ -64,10 +64,6 @@ const corsOptions: cors.CorsOptions = {
 ========================= */
 
 app.use(cors(corsOptions));
-
-// ✅ IMPORTANT FOR VERCEL (NO '*')
-app.options("*", cors(corsOptions));
-
 app.use(cookieParser());
 app.use(express.json());
 
