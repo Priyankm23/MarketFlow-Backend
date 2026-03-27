@@ -4,7 +4,10 @@ import { requireAuth } from "../../core/middlewares/requireAuth.js";
 import { requireRole } from "../../core/middlewares/requireRole.js";
 import { upload } from "../../core/middlewares/upload.js";
 import { validate } from "../../core/middlewares/validate.js";
-import { createProductSchema, rateProductSchema } from "./product.validation.js";
+import {
+  createProductSchema,
+  rateProductSchema,
+} from "./product.validation.js";
 
 const router = Router();
 
@@ -36,7 +39,7 @@ router.post(
   "/:id/rate",
   requireAuth,
   validate(rateProductSchema),
-  ProductController.rateProduct
+  ProductController.rateProduct,
 );
 
 // Protected endpoints for vendors

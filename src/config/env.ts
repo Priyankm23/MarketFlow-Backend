@@ -33,4 +33,5 @@ export const env = {
   CLOUDINARY_API_SECRET: getEnvVariable("CLOUDINARY_API_SECRET"),
 
   CORS_ORIGIN: getEnvVariable("CORS_ORIGIN"),
+  REDIS_URL: getEnvVariable("REDIS_URL"),
 };
