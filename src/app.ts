@@ -63,24 +63,9 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 app.options("(.*)", cors(corsOptions));
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
 
-  if (origin && allowedOrigins.has(origin)) {
-    res.setHeader("Access-Control-Allow-Origin", origin);
-  }
-
-  res.setHeader("Access-Control-Allow-Credentials", "true");
-
-  if (req.method === "OPTIONS") {
-    return res.sendStatus(200);
-  }
-
-  next();
-});
-
-app.use(express.json());
 app.use(cookieParser());
+app.use(express.json());
 
 // API Routes
 app.use("/api/v1/auth", authRoutes);
