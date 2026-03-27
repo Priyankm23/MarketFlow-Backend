@@ -33,7 +33,10 @@ if (process.env.NODE_ENV === "production") {
 }
 
 const corsOptions = {
-  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+  origin: (
+    origin: string | undefined,
+    callback: (err: Error | null, allow?: boolean) => void,
+  ) => {
     // allow non-browser requests with no origin (server-to-server, curl)
     if (!origin) return callback(null, true);
     if (allowedOrigins.has(origin)) return callback(null, true);
@@ -41,13 +44,16 @@ const corsOptions = {
   },
   credentials: true,
   methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE"],
-  allowedHeaders: ["Content-Type", "Authorization", "Accept", "X-Requested-With"],
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "Accept",
+    "X-Requested-With",
+  ],
   optionsSuccessStatus: 200,
 };
 
 app.use(cors(corsOptions));
-// Ensure preflight requests are handled
-app.options("/*", cors(corsOptions));
 app.use(express.json());
 app.use(cookieParser());
 
