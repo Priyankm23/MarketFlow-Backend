@@ -10,6 +10,12 @@ const router = Router();
 router.get("/vendors/pending",requireAuth, requireRole(["ADMIN"]),AdminController.getPendingVendors);
 
 router.get("/vendors/approved", AdminController.getApprovedVendors);
+router.get(
+  "/analytics",
+  requireAuth,
+  requireRole(["ADMIN"]),
+  AdminController.getAnalytics,
+);
 router.patch(
   "/vendors/:vendorId/review",
   requireAuth,

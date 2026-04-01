@@ -48,6 +48,12 @@ enum InventoryReservationStatus {
   EXPIRED
 }
 
+enum OfferApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model User {
   id            String   @id @default(uuid())
   email         String   @unique
@@ -63,6 +69,7 @@ model User {
   orders        Order[]
   cart          Cart?
   ratings       ProductRating[]
+  approvals     Offer[]  @relation("OfferApprovedBy")
 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -195,14 +202,23 @@ model Offer {
   couponCode         String?
   termsAndConditions String?
   isActive           Boolean  @default(true)
+  isFlashDeal        Boolean  @default(false)
+  startAt            DateTime?
+  endAt              DateTime?
+  approvalStatus     OfferApprovalStatus @default(PENDING)
+  approvedById       String?
+  approvedAt         DateTime?
 
   product            Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  approvedBy         User?    @relation("OfferApprovedBy", fields: [approvedById], references: [id])
 
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
   @@index([productId])
   @@index([isActive])
+  @@index([isFlashDeal, approvalStatus, startAt, endAt])
   @@unique([productId, couponCode])
 }
 

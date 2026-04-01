@@ -18,4 +18,9 @@ export class AdminController {
     const vendor = await AdminService.reviewVendor(vendorId as string, status);
     res.status(200).json({ status: "success", data: vendor });
   }
+
+  static async getAnalytics(req: Request, res: Response) {
+    const metrics = await AdminService.getAnalytics();
+    res.status(200).json({ status: "success", data: metrics });
+  }
 }

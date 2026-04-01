@@ -34,4 +34,7 @@ export const env = {
 
   CORS_ORIGIN: getEnvVariable("CORS_ORIGIN"),
   REDIS_URL: getEnvVariable("REDIS_URL"),
+  // Flash deal auto-approval thresholds
+  FLASH_DEAL_AUTO_APPROVE_MIN_RATING: Number(process.env.FLASH_DEAL_AUTO_APPROVE_MIN_RATING ?? 3.5),
+  FLASH_DEAL_AUTO_APPROVE_MIN_REVIEWS: Number(process.env.FLASH_DEAL_AUTO_APPROVE_MIN_REVIEWS ?? 3),
 };

@@ -23,7 +23,7 @@ deliveryRoutes.get(
 deliveryRoutes.post(
   "/profile",
   requireAuth,
-  requireRole(["DELIVERY_PARTNER"]),
+  requireRole(["DELIVERY_PARTNER,VENDOR"]),
   DeliveryController.updateProfile,
 );
 

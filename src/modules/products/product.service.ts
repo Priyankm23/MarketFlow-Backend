@@ -122,6 +122,15 @@ export class ProductService {
         include: {
           category: { select: { id: true, name: true } },
           vendor: { select: { businessName: true, id: true } },
+          offers: {
+            where: {
+              isActive: true,
+              approvalStatus: "APPROVED",
+              startAt: { lte: new Date() },
+              endAt: { gt: new Date() },
+            },
+            take: 1,
+          },
         },
         skip,
         take: limit,
@@ -163,7 +172,11 @@ export class ProductService {
     return product;
   }
 
-  static async rateProduct(productId: string, userId: string, newRating: number) {
+  static async rateProduct(
+    productId: string,
+    userId: string,
+    newRating: number,
+  ) {
     const updatedProduct = await prisma.$transaction(async (tx: any) => {
       const product = await tx.product.findUnique({
         where: { id: productId },

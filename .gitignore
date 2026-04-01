@@ -46,3 +46,5 @@ public/
 scripts/
 
 mock/
+
+shadow_backup.sql

@@ -13,6 +13,7 @@ import { cartRoutes } from "./modules/cart/cart.routes.js";
 import { orderRoutes } from "./modules/orders/orders.routes.js";
 import { paymentRoutes } from "./modules/payments/payments.routes.js";
 import { deliveryRoutes } from "./modules/delivery/delivery.routes.js";
+import flashDealsRoutes from "./modules/flashDeals/flashDeals.routes.js";
 
 const app = express();
 
@@ -77,6 +78,7 @@ app.use("/api/v1/cart", cartRoutes);
 app.use("/api/v1/orders", orderRoutes);
 app.use("/api/v1/payments", paymentRoutes);
 app.use("/api/v1/delivery", deliveryRoutes);
+app.use("/api/v1/flash-deals", flashDealsRoutes);
 
 // Health Check endpoint
 app.get("/health", (_req, res) => {

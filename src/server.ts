@@ -3,6 +3,7 @@ import { prisma } from "./db/prisma.js";
 import { env } from "./config/env.js";
 import { cleanupSessions } from "./jobs/cleanupSessions.js";
 import { runInventoryCleanup } from "./jobs/inventoryCleanup.js";
+import { startFlashDealsCacheRefresher } from "./jobs/refreshFlashDealsCache.js";
 
 async function startServer() {
   try {
@@ -24,6 +25,11 @@ async function startServer() {
       },
       60 * 5 * 1000,
     );
+
+    // Start flash-deals cache refresher in background
+    startFlashDealsCacheRefresher().catch((err) => {
+      console.error("Failed to start flash deals refresher:", err);
+    });
   } catch (error) {
     console.error("Failed to start server:", error);
     process.exit(1);

@@ -50,4 +50,65 @@ export class AdminService {
 
     return updatedVendor;
   }
+
+  static async getAnalytics() {
+    const lowStockThreshold = 5;
+
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const [
+      totalUsers,
+      totalVendors,
+      vendorStatusGroups,
+      totalProducts,
+      lowStockProducts,
+      totalOrders,
+      ordersByStatusGroups,
+      paymentSum,
+      ordersToday,
+    ] = await Promise.all([
+      prisma.user.count(),
+      prisma.vendor.count(),
+      prisma.vendor.groupBy({ by: ["status"], _count: { _all: true } }),
+      prisma.product.count(),
+      prisma.product.count({ where: { stock: { lt: lowStockThreshold } } }),
+      prisma.order.count(),
+      prisma.order.groupBy({ by: ["status"], _count: { _all: true } }),
+      prisma.payment.aggregate({
+        _sum: { amount: true },
+        where: { status: "SUCCESS" },
+      }),
+      prisma.order.count({ where: { createdAt: { gte: startOfDay } } }),
+    ]);
+
+    const vendorStatusCounts: Record<string, number> = {};
+    for (const g of vendorStatusGroups) {
+      // @ts-ignore
+      vendorStatusCounts[g.status] = g._count._all ?? 0;
+    }
+
+    const ordersByStatus: Record<string, number> = {};
+    for (const g of ordersByStatusGroups) {
+      // @ts-ignore
+      ordersByStatus[g.status] = g._count._all ?? 0;
+    }
+
+    const totalRevenue = paymentSum._sum?.amount
+      ? paymentSum._sum.amount.toString()
+      : "0";
+
+    return {
+      totalUsers,
+      totalVendors,
+      vendorStatusCounts,
+      totalProducts,
+      lowStockProducts,
+      totalOrders,
+      ordersByStatus,
+      totalRevenue,
+      ordersToday,
+      lowStockThreshold,
+    };
+  }
 }
