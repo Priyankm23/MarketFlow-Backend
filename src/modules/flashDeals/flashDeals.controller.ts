@@ -40,7 +40,11 @@ export class FlashDealsController {
     try {
       const user = req.user;
       if (!user) throw new ApiError(401, "Unauthorized");
-      const offerId = req.params.id;
+      const rawOfferId = Array.isArray(req.params.id)
+        ? req.params.id[0]
+        : req.params.id;
+      const offerId = rawOfferId?.trim();
+      if (!offerId) throw new ApiError(400, "Offer ID is required");
       const updated = await FlashDealsService.approveOffer(
         user.userId,
         offerId,
@@ -57,7 +61,11 @@ export class FlashDealsController {
     try {
       const user = req.user;
       if (!user) throw new ApiError(401, "Unauthorized");
-      const offerId = req.params.id;
+      const rawOfferId = Array.isArray(req.params.id)
+        ? req.params.id[0]
+        : req.params.id;
+      const offerId = rawOfferId?.trim();
+      if (!offerId) throw new ApiError(400, "Offer ID is required");
       const { reason } = req.body;
       const updated = await FlashDealsService.rejectOffer(
         user.userId,
