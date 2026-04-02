@@ -34,6 +34,8 @@ export const env = {
 
   CORS_ORIGIN: getEnvVariable("CORS_ORIGIN"),
   REDIS_URL: getEnvVariable("REDIS_URL"),
+  EXPECTED_DB_HOST: process.env.EXPECTED_DB_HOST?.trim() || undefined,
+  EXPECTED_DB_NAME: process.env.EXPECTED_DB_NAME?.trim() || undefined,
   // Flash deal auto-approval thresholds
   FLASH_DEAL_AUTO_APPROVE_MIN_RATING: Number(process.env.FLASH_DEAL_AUTO_APPROVE_MIN_RATING ?? 3.5),
   FLASH_DEAL_AUTO_APPROVE_MIN_REVIEWS: Number(process.env.FLASH_DEAL_AUTO_APPROVE_MIN_REVIEWS ?? 3),

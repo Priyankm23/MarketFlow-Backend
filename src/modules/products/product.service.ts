@@ -133,15 +133,6 @@ export class ProductService {
           include: {
             category: { select: { id: true, name: true } },
             vendor: { select: { businessName: true, id: true } },
-            offers: {
-              where: {
-                isActive: true,
-                approvalStatus: "APPROVED",
-                startAt: { lte: new Date() },
-                endAt: { gt: new Date() },
-              },
-              take: 1,
-            },
           },
           skip,
           take: limit,
