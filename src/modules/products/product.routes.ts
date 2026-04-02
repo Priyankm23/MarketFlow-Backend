@@ -27,6 +27,7 @@ router.get("/categories", ProductController.getCategories);
 
 // Public endpoints to browse products (Cached via Redis)
 router.get("/trending", ProductController.getTrendingProduct);
+router.get("/new-arrivals", ProductController.getNewArrivalsProducts);
 
 router.get("/", ProductController.getProducts);
 router.get(

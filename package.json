@@ -8,9 +8,11 @@
     "dev": "tsx watch src/server.ts",
     "test:type": "tsx src/modules/auth/auth.types.ts",
     "seed:electronics": "tsx src/scripts/seedElectronicsProducts.ts",
+    "db:migrate:deploy": "prisma migrate deploy",
     "build": "prisma generate && tsc -p tsconfig.json",
     "vercel-build": "npm run build",
-    "start": "node dist/server.js"
+    "start": "node dist/server.js",
+    "start:prod": "prisma migrate deploy && node dist/server.js"
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",

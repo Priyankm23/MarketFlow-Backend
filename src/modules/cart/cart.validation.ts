@@ -13,11 +13,11 @@ export const updateCartItemSchema = z.object({
   }),
   params: z.object({
     productId: z.string().uuid("Invalid Product ID"),
-  })
+  }),
 });
 
 export const removeCartItemSchema = z.object({
   params: z.object({
     productId: z.string().uuid("Invalid Product ID"),
-  })
+  }),
 });

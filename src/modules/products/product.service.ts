@@ -22,6 +22,13 @@ export interface CreateProductData {
 }
 
 export class ProductService {
+  private static isMissingColumnError(error: unknown): boolean {
+    return (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2022"
+    );
+  }
+
   /**
    * Automatically clears cached product listings
    */
@@ -116,28 +123,57 @@ export class ProductService {
       };
     }
 
-    const [products, total] = await Promise.all([
-      prisma.product.findMany({
-        where: whereClause,
-        include: {
-          category: { select: { id: true, name: true } },
-          vendor: { select: { businessName: true, id: true } },
-          offers: {
-            where: {
-              isActive: true,
-              approvalStatus: "APPROVED",
-              startAt: { lte: new Date() },
-              endAt: { gt: new Date() },
+    let products: any[] = [];
+    let total = 0;
+
+    try {
+      [products, total] = await Promise.all([
+        prisma.product.findMany({
+          where: whereClause,
+          include: {
+            category: { select: { id: true, name: true } },
+            vendor: { select: { businessName: true, id: true } },
+            offers: {
+              where: {
+                isActive: true,
+                approvalStatus: "APPROVED",
+                startAt: { lte: new Date() },
+                endAt: { gt: new Date() },
+              },
+              take: 1,
             },
-            take: 1,
           },
-        },
-        skip,
-        take: limit,
-        orderBy: { createdAt: "desc" },
-      }),
-      prisma.product.count({ where: whereClause }),
-    ]);
+          skip,
+          take: limit,
+          orderBy: { createdAt: "desc" },
+        }),
+        prisma.product.count({ where: whereClause }),
+      ]);
+    } catch (error) {
+      if (!this.isMissingColumnError(error)) throw error;
+
+      console.error(
+        "Product query fallback activated due to schema drift (P2022). Run prisma migrate deploy on production.",
+      );
+
+      [products, total] = await Promise.all([
+        prisma.product.findMany({
+          where: whereClause,
+          include: {
+            category: { select: { id: true, name: true } },
+            vendor: { select: { businessName: true, id: true } },
+            offers: {
+              where: { isActive: true },
+              take: 1,
+            },
+          },
+          skip,
+          take: limit,
+          orderBy: { createdAt: "desc" },
+        }),
+        prisma.product.count({ where: whereClause }),
+      ]);
+    }
 
     const result = {
       data: products,
@@ -246,7 +282,7 @@ export class ProductService {
     });
   }
 
-  static async getTrendingProduct() {
+  static async getTrendingProduct(limit = 20) {
     return prisma.product.findMany({
       where: {
         rating: { gt: 3.5 },
@@ -256,6 +292,22 @@ export class ProductService {
         vendor: { select: { businessName: true, id: true } },
       },
       orderBy: { rating: "desc" },
+      take: limit,
+    });
+  }
+
+  static async getNewArrivalsProducts(limit = 20) {
+    return prisma.product.findMany({
+      where: {
+        isActive: true,
+        stock: { gt: 0 },
+      },
+      include: {
+        category: { select: { id: true, name: true } },
+        vendor: { select: { businessName: true, id: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: limit,
     });
   }
 

@@ -19,6 +19,13 @@ interface CheckoutShippingAddress {
 
 type CheckoutPaymentMode = "ONLINE" | "COD";
 
+interface CheckoutCharges {
+  platformFee: number;
+  deliveryFee: number;
+  gst: number;
+  offerDiscount: number;
+}
+
 export class OrderService {
   /**
    * Convert Redis Cart into one or more Postgres Orders (grouped by Vendor).
@@ -26,6 +33,7 @@ export class OrderService {
   static async checkoutCart(
     userId: string,
     shippingAddress: CheckoutShippingAddress,
+    charges: CheckoutCharges,
     paymentMode: CheckoutPaymentMode = "ONLINE",
   ) {
     const cart = await CartService.getCart(userId);
@@ -80,9 +88,40 @@ export class OrderService {
 
         const createdOrders = [];
         const expirationTime = new Date(Date.now() + 15 * 60 * 1000); // 15 mins from now
+        const roundTo2 = (value: number) => Number(value.toFixed(2));
 
-        for (const vendorId of Object.keys(itemsByVendor)) {
-          const vendorItems = itemsByVendor[vendorId];
+        if (charges.platformFee !== 29) {
+          throw new ApiError(400, "Platform fee must be exactly 29");
+        }
+
+        const sortedVendorIds = Object.keys(itemsByVendor).sort();
+        const vendorOrderGroups = sortedVendorIds.map((vendorId) => {
+          const vendorItems = itemsByVendor[vendorId] ?? [];
+          const subtotal = vendorItems.reduce(
+            (sum: number, item: any) => sum + item.itemTotal,
+            0,
+          );
+
+          return { vendorId, vendorItems, subtotal };
+        });
+
+        const cartSubtotal = vendorOrderGroups.reduce(
+          (sum, group) => sum + group.subtotal,
+          0,
+        );
+        const totalExtraCharges =
+          charges.platformFee + charges.deliveryFee + charges.gst;
+        const totalOfferDiscount = charges.offerDiscount;
+
+        let allocatedExtraCharges = 0;
+        let allocatedOfferDiscount = 0;
+
+        for (let index = 0; index < vendorOrderGroups.length; index += 1) {
+          const {
+            vendorId,
+            vendorItems,
+            subtotal: vendorSubtotal,
+          } = vendorOrderGroups[index]!;
           if (!vendorItems || vendorItems.length === 0) {
             continue;
           }
@@ -91,9 +130,28 @@ export class OrderService {
               ? OrderStatus.CONFIRMED
               : OrderStatus.PAYMENT_PENDING;
 
-          const vendorTotal = vendorItems.reduce(
-            (sum: number, item: any) => sum + item.itemTotal,
-            0,
+          const vendorRatio =
+            cartSubtotal > 0 ? vendorSubtotal / cartSubtotal : 0;
+          const isLastVendor = index === vendorOrderGroups.length - 1;
+
+          const vendorExtraCharges = isLastVendor
+            ? roundTo2(totalExtraCharges - allocatedExtraCharges)
+            : roundTo2(totalExtraCharges * vendorRatio);
+
+          const vendorOfferDiscount = isLastVendor
+            ? roundTo2(totalOfferDiscount - allocatedOfferDiscount)
+            : roundTo2(totalOfferDiscount * vendorRatio);
+
+          if (!isLastVendor) {
+            allocatedExtraCharges += vendorExtraCharges;
+            allocatedOfferDiscount += vendorOfferDiscount;
+          }
+
+          const finalVendorTotal = roundTo2(
+            Math.max(
+              vendorSubtotal + vendorExtraCharges - vendorOfferDiscount,
+              0,
+            ),
           );
 
           // 3. Create the order
@@ -110,7 +168,7 @@ export class OrderService {
               shippingCity: shippingAddress.city,
               shippingState: shippingAddress.state,
               shippingPostalCode: shippingAddress.postalCode,
-              totalAmount: vendorTotal,
+              totalAmount: finalVendorTotal,
               status: initialStatus,
               items: {
                 create: vendorItems.map((item: any) => ({

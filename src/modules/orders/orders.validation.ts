@@ -23,6 +23,14 @@ export const checkoutSchema = z.object({
   body: z.object({
     shippingAddress: shippingAddressSchema,
     paymentMode: paymentModeSchema.default("ONLINE"),
+    platformFee: z.coerce
+      .number()
+      .refine((value) => value === 29, "Platform fee must be 29"),
+    deliveryFee: z.coerce.number().min(0, "Delivery fee cannot be negative"),
+    gst: z.coerce.number().min(0, "GST cannot be negative"),
+    offerDiscount: z.coerce
+      .number()
+      .min(0, "Offer discount cannot be negative"),
   }),
 });
 

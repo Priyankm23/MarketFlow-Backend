@@ -73,10 +73,25 @@ export class ProductController {
   }
 
   static async getTrendingProduct(req: Request, res: Response) {
-    const trendingProducts = await ProductService.getTrendingProduct();
+    const limit = req.query.limit
+      ? parseInt(req.query.limit as string, 10)
+      : undefined;
+    const trendingProducts = await ProductService.getTrendingProduct(limit);
     res.status(200).json({
       status: "success",
       products: trendingProducts,
+    });
+  }
+
+  static async getNewArrivalsProducts(req: Request, res: Response) {
+    const limit = req.query.limit
+      ? parseInt(req.query.limit as string, 10)
+      : undefined;
+
+    const newArrivals = await ProductService.getNewArrivalsProducts(limit);
+    res.status(200).json({
+      status: "success",
+      products: newArrivals,
     });
   }
 
@@ -111,13 +126,15 @@ export class ProductController {
     }
 
     if (!userId) {
-      res
-        .status(401)
-        .json({ status: "fail", message: "Unauthorized" });
+      res.status(401).json({ status: "fail", message: "Unauthorized" });
       return;
     }
 
-    const updatedProduct = await ProductService.rateProduct(productId, userId, rating);
+    const updatedProduct = await ProductService.rateProduct(
+      productId,
+      userId,
+      rating,
+    );
     res.status(200).json({ status: "success", data: updatedProduct });
   }
 

@@ -1,10 +1,18 @@
 import { prisma } from "../../db/prisma.js";
 import { redis } from "../../config/redis.js";
 import { env } from "../../config/env.js";
+import { Prisma } from "../../../generated/prisma/index.js";
 
 const REDIS_KEY = "flashDeals:active";
 
 export class FlashDealsService {
+  private static isMissingColumnError(error: unknown): boolean {
+    return (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2022"
+    );
+  }
+
   static async getActiveFlashDeals(limit = 10) {
     // Try cache first
     try {
@@ -18,32 +26,42 @@ export class FlashDealsService {
 
     const now = new Date();
 
-    const offers = await prisma.offer.findMany({
-      where: {
-        isFlashDeal: true,
-        approvalStatus: "APPROVED",
-        isActive: true,
-        startAt: { lte: now },
-        endAt: { gt: now },
-      },
-      include: {
-        product: {
-          select: {
-            id: true,
-            name: true,
-            price: true,
-            stock: true,
-            imageUrl: true,
-            imageUrls: true,
-            vendorId: true,
-            vendor: { select: { businessName: true } },
-            rating: true,
+    let offers: any[] = [];
+    try {
+      offers = await prisma.offer.findMany({
+        where: {
+          isFlashDeal: true,
+          approvalStatus: "APPROVED",
+          isActive: true,
+          startAt: { lte: now },
+          endAt: { gt: now },
+        },
+        include: {
+          product: {
+            select: {
+              id: true,
+              name: true,
+              price: true,
+              stock: true,
+              imageUrl: true,
+              imageUrls: true,
+              vendorId: true,
+              vendor: { select: { businessName: true } },
+              rating: true,
+            },
           },
         },
-      },
-      orderBy: [{ endAt: "asc" }, { createdAt: "desc" }],
-      take: limit,
-    });
+        orderBy: [{ endAt: "asc" }, { createdAt: "desc" }],
+        take: limit,
+      });
+    } catch (error) {
+      if (!this.isMissingColumnError(error)) throw error;
+
+      console.error(
+        "Flash deals disabled due to schema drift (P2022). Run prisma migrate deploy on production.",
+      );
+      return [];
+    }
 
     // Transform for frontend
     const nowMs = Date.now();
@@ -413,32 +431,42 @@ export class FlashDealsService {
     // Query DB for active offers and set Redis cache (bypass existing cache read)
     const now = new Date();
 
-    const offers = await prisma.offer.findMany({
-      where: {
-        isFlashDeal: true,
-        approvalStatus: "APPROVED",
-        isActive: true,
-        startAt: { lte: now },
-        endAt: { gt: now },
-      },
-      include: {
-        product: {
-          select: {
-            id: true,
-            name: true,
-            price: true,
-            stock: true,
-            imageUrl: true,
-            imageUrls: true,
-            vendorId: true,
-            vendor: { select: { businessName: true } },
-            rating: true,
+    let offers: any[] = [];
+    try {
+      offers = await prisma.offer.findMany({
+        where: {
+          isFlashDeal: true,
+          approvalStatus: "APPROVED",
+          isActive: true,
+          startAt: { lte: now },
+          endAt: { gt: now },
+        },
+        include: {
+          product: {
+            select: {
+              id: true,
+              name: true,
+              price: true,
+              stock: true,
+              imageUrl: true,
+              imageUrls: true,
+              vendorId: true,
+              vendor: { select: { businessName: true } },
+              rating: true,
+            },
           },
         },
-      },
-      orderBy: [{ endAt: "asc" }, { createdAt: "desc" }],
-      take: limit,
-    });
+        orderBy: [{ endAt: "asc" }, { createdAt: "desc" }],
+        take: limit,
+      });
+    } catch (error) {
+      if (!this.isMissingColumnError(error)) throw error;
+
+      console.error(
+        "Flash deals cache refresh skipped due to schema drift (P2022). Run prisma migrate deploy on production.",
+      );
+      return [];
+    }
 
     const nowMs = Date.now();
 

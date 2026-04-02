@@ -4,10 +4,23 @@ import { OrderStatus } from "../../../generated/prisma/index.js";
 
 export class OrderController {
   static async checkout(req: Request, res: Response) {
-    const { shippingAddress, paymentMode } = req.body;
+    const {
+      shippingAddress,
+      paymentMode,
+      platformFee,
+      deliveryFee,
+      gst,
+      offerDiscount,
+    } = req.body;
     const orders = await OrderService.checkoutCart(
       req.user!.userId,
       shippingAddress,
+      {
+        platformFee,
+        deliveryFee,
+        gst,
+        offerDiscount,
+      },
       paymentMode,
     );
 
