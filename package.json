@@ -9,8 +9,7 @@
     "db:migrate:deploy": "prisma migrate deploy",
     "build": "prisma generate && tsc -p tsconfig.json",
     "vercel-build": "npm run build",
-    "start": "pm2-runtime start ecosystem.config.cjs",
-    "start:prod": "prisma migrate deploy && prisma generate && node dist/server.js",
+    "start": "prisma migrate deploy && prisma generate && pm2-runtime start ecosystem.config.cjs",
     "worker": "tsx src/jobs/workers/emailWorker.ts",
     "lint": "eslint . --max-warnings=2000",
     "typecheck": "tsc --noEmit"
