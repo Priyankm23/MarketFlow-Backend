@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { AuthService } from "./auth.service.js";
 import { env } from "../../config/env.js";
+import { emailQueue } from "../../jobs/queues/queue.js";
 
 const getCookieOptions = (expiresAt: Date) => ({
   httpOnly: true,
@@ -13,6 +14,14 @@ export class AuthController {
   static async register(req: Request, res: Response) {
     const { accessToken, refreshToken, sessionExpiresAt, user } =
       await AuthService.register(req.body);
+
+    const job = await emailQueue.add("welcome-email", {
+      name: req.body.name,
+      email: req.body.email,
+      userId: user.id,
+    });
+
+    console.log(`📬 Email job queued with ID: ${job.id}`);
 
     res.cookie(
       "refreshToken",

@@ -159,9 +159,10 @@ export class DeliveryService {
       });
 
       // 3. Constraint Check: Filter out partners at or over capacity
-      const availablePartners = potentialPartners.filter((p: any) =>
-        p.activeDeliveries < p.dailyCapacity &&
-        this.hasPincodeCoverage(p.coveragePincodes, targetPincode),
+      const availablePartners = potentialPartners.filter(
+        (p: any) =>
+          p.activeDeliveries < p.dailyCapacity &&
+          this.hasPincodeCoverage(p.coveragePincodes, targetPincode),
       );
 
       if (availablePartners.length === 0) {
@@ -185,7 +186,9 @@ export class DeliveryService {
       }
 
       // 4. Proximity & Load Balance: Sort by those with the lowest active deliveries first
-      availablePartners.sort((a: any, b: any) => a.activeDeliveries - b.activeDeliveries);
+      availablePartners.sort(
+        (a: any, b: any) => a.activeDeliveries - b.activeDeliveries,
+      );
 
       const selectedPartner = availablePartners[0];
       if (!selectedPartner) {

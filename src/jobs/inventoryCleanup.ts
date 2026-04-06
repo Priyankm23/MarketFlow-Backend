@@ -55,7 +55,10 @@ export const runInventoryCleanup = async () => {
 
           // If the order is explicitly CANCELLED or REFUNDED already,
           // we don't want to double-increment the stock. We just mark the reservation as EXPIRED.
-          if ((order.status as any) === "CANCELLED" || (order.status as any) === "REFUNDED") {
+          if (
+            (order.status as any) === "CANCELLED" ||
+            (order.status as any) === "REFUNDED"
+          ) {
             await tx.inventoryReservation.updateMany({
               where: { orderId: orderId, status: "RESERVED" },
               data: { status: "EXPIRED" },

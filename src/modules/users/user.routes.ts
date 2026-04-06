@@ -9,6 +9,10 @@ const router = Router();
 router.use(requireAuth);
 
 router.get("/profile", UserController.getProfile);
-router.put("/profile", validate(updateProfileSchema), UserController.updateProfile);
+router.put(
+  "/profile",
+  validate(updateProfileSchema),
+  UserController.updateProfile,
+);
 
 export default router;

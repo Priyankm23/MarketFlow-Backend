@@ -5,6 +5,7 @@ import { OrderStatus, Prisma } from "../../../generated/prisma/index.js";
 import { OrderStateMachine } from "./orderStateMachine.js";
 import { CartService } from "../cart/cart.service.js";
 import { DeliveryService } from "../delivery/delivery.service.js";
+import { OrderPricingService } from "./pricing.service.js";
 
 interface CheckoutShippingAddress {
   fullName: string;
@@ -19,11 +20,10 @@ interface CheckoutShippingAddress {
 
 type CheckoutPaymentMode = "ONLINE" | "COD";
 
-interface CheckoutCharges {
-  platformFee: number;
-  deliveryFee: number;
-  gst: number;
-  offerDiscount: number;
+interface CheckoutOfferSelection {
+  productId: string;
+  offerId?: string;
+  couponCode?: string;
 }
 
 export class OrderService {
@@ -33,14 +33,29 @@ export class OrderService {
   static async checkoutCart(
     userId: string,
     shippingAddress: CheckoutShippingAddress,
-    charges: CheckoutCharges,
     paymentMode: CheckoutPaymentMode = "ONLINE",
+    appliedOffers: CheckoutOfferSelection[] = [],
   ) {
     const cart = await CartService.getCart(userId);
 
     if (cart.items.length === 0) {
       throw new ApiError(400, "Cannot checkout an empty cart");
     }
+
+    const offerByProductId = await OrderPricingService.resolveAppliedOffers(
+      cart.items.map((item: any) => item.productId),
+      appliedOffers,
+    );
+
+    const pricing = OrderPricingService.calculateFromCartItems(
+      cart.items.map((item: any) => ({
+        productId: item.productId,
+        quantity: item.quantity,
+        unitPrice: item.price,
+        categoryName: item.categoryName,
+      })),
+      offerByProductId,
+    );
 
     // Group items by vendorId
     type GroupedCart = Record<string, typeof cart.items>;
@@ -90,9 +105,9 @@ export class OrderService {
         const expirationTime = new Date(Date.now() + 15 * 60 * 1000); // 15 mins from now
         const roundTo2 = (value: number) => Number(value.toFixed(2));
 
-        if (charges.platformFee !== 29) {
-          throw new ApiError(400, "Platform fee must be exactly 29");
-        }
+        const itemPricingMap = new Map(
+          pricing.itemBreakdown.map((item) => [item.productId, item]),
+        );
 
         const sortedVendorIds = Object.keys(itemsByVendor).sort();
         const vendorOrderGroups = sortedVendorIds.map((vendorId) => {
@@ -109,12 +124,13 @@ export class OrderService {
           (sum, group) => sum + group.subtotal,
           0,
         );
-        const totalExtraCharges =
-          charges.platformFee + charges.deliveryFee + charges.gst;
-        const totalOfferDiscount = charges.offerDiscount;
+        const totalPlatformFee = pricing.summary.platformFee;
+        const totalDeliveryFee = pricing.summary.deliveryFee;
 
-        let allocatedExtraCharges = 0;
+        let allocatedPlatformFee = 0;
+        let allocatedDeliveryFee = 0;
         let allocatedOfferDiscount = 0;
+        let allocatedGst = 0;
 
         for (let index = 0; index < vendorOrderGroups.length; index += 1) {
           const {
@@ -134,22 +150,49 @@ export class OrderService {
             cartSubtotal > 0 ? vendorSubtotal / cartSubtotal : 0;
           const isLastVendor = index === vendorOrderGroups.length - 1;
 
-          const vendorExtraCharges = isLastVendor
-            ? roundTo2(totalExtraCharges - allocatedExtraCharges)
-            : roundTo2(totalExtraCharges * vendorRatio);
+          const vendorOfferDiscountRaw = vendorItems.reduce(
+            (sum: any, item: any) => {
+              const itemPricing = itemPricingMap.get(item.productId);
+              return sum + (itemPricing?.discountAmount ?? 0);
+            },
+            0,
+          );
+
+          const vendorGstRaw = vendorItems.reduce((sum: any, item: any) => {
+            const itemPricing = itemPricingMap.get(item.productId);
+            return sum + (itemPricing?.gstAmount ?? 0);
+          }, 0);
 
           const vendorOfferDiscount = isLastVendor
-            ? roundTo2(totalOfferDiscount - allocatedOfferDiscount)
-            : roundTo2(totalOfferDiscount * vendorRatio);
+            ? roundTo2(pricing.summary.offerDiscount - allocatedOfferDiscount)
+            : roundTo2(vendorOfferDiscountRaw);
+
+          const vendorGst = isLastVendor
+            ? roundTo2(pricing.summary.gst - allocatedGst)
+            : roundTo2(vendorGstRaw);
+
+          const vendorPlatformFee = isLastVendor
+            ? roundTo2(totalPlatformFee - allocatedPlatformFee)
+            : roundTo2(totalPlatformFee * vendorRatio);
+
+          const vendorDeliveryFee = isLastVendor
+            ? roundTo2(totalDeliveryFee - allocatedDeliveryFee)
+            : roundTo2(totalDeliveryFee * vendorRatio);
 
           if (!isLastVendor) {
-            allocatedExtraCharges += vendorExtraCharges;
             allocatedOfferDiscount += vendorOfferDiscount;
+            allocatedGst += vendorGst;
+            allocatedPlatformFee += vendorPlatformFee;
+            allocatedDeliveryFee += vendorDeliveryFee;
           }
 
           const finalVendorTotal = roundTo2(
             Math.max(
-              vendorSubtotal + vendorExtraCharges - vendorOfferDiscount,
+              vendorSubtotal -
+                vendorOfferDiscount +
+                vendorGst +
+                vendorPlatformFee +
+                vendorDeliveryFee,
               0,
             ),
           );
@@ -168,14 +211,26 @@ export class OrderService {
               shippingCity: shippingAddress.city,
               shippingState: shippingAddress.state,
               shippingPostalCode: shippingAddress.postalCode,
+              subtotal: roundTo2(vendorSubtotal),
+              platformFee: vendorPlatformFee,
+              deliveryFee: vendorDeliveryFee,
+              gstAmount: vendorGst,
+              offerDiscount: vendorOfferDiscount,
               totalAmount: finalVendorTotal,
               status: initialStatus,
               items: {
-                create: vendorItems.map((item: any) => ({
-                  productId: item.productId,
-                  quantity: item.quantity,
-                  price: item.price,
-                })),
+                create: vendorItems.map((item: any) => {
+                  const itemPricing = itemPricingMap.get(item.productId);
+                  return {
+                    productId: item.productId,
+                    quantity: item.quantity,
+                    price: item.price,
+                    gstRate: itemPricing?.gstRate ?? 0,
+                    gstAmount: itemPricing?.gstAmount ?? 0,
+                    discountAmount: itemPricing?.discountAmount ?? 0,
+                    lineTotal: itemPricing?.lineTotal ?? item.itemTotal,
+                  };
+                }),
               },
               events: {
                 create: [

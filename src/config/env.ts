@@ -34,9 +34,20 @@ export const env = {
 
   CORS_ORIGIN: getEnvVariable("CORS_ORIGIN"),
   REDIS_URL: getEnvVariable("REDIS_URL"),
+
+  SMTP_SERVER: getEnvVariable("SMTP_SERVER"),
+  SMTP_PORT: getEnvVariable("SMTP_PORT"),
+  SMTP_USER: getEnvVariable("SMTP_USER"),
+  SMTP_PASS: getEnvVariable("SMTP_PASS"),
+
   EXPECTED_DB_HOST: process.env.EXPECTED_DB_HOST?.trim() || undefined,
   EXPECTED_DB_NAME: process.env.EXPECTED_DB_NAME?.trim() || undefined,
+
   // Flash deal auto-approval thresholds
-  FLASH_DEAL_AUTO_APPROVE_MIN_RATING: Number(process.env.FLASH_DEAL_AUTO_APPROVE_MIN_RATING ?? 3.5),
-  FLASH_DEAL_AUTO_APPROVE_MIN_REVIEWS: Number(process.env.FLASH_DEAL_AUTO_APPROVE_MIN_REVIEWS ?? 3),
+  FLASH_DEAL_AUTO_APPROVE_MIN_RATING: Number(
+    process.env.FLASH_DEAL_AUTO_APPROVE_MIN_RATING ?? 3.5,
+  ),
+  FLASH_DEAL_AUTO_APPROVE_MIN_REVIEWS: Number(
+    process.env.FLASH_DEAL_AUTO_APPROVE_MIN_REVIEWS ?? 3,
+  ),
 };

@@ -1,6 +1,7 @@
 import { prisma } from "../../db/prisma.js";
 import { ApiError } from "../../core/errors/ApiError.js";
 import crypto from "crypto";
+import { emailQueue } from "../../jobs/queues/queue.js";
 import {
   OrderStatus,
   PaymentStatus,
@@ -142,6 +143,54 @@ export class PaymentService {
           data: { processed: true },
         });
       });
+
+      const orderForInvoice = await prisma.order.findUnique({
+        where: { id: payment.orderId },
+        include: {
+          vendor: { select: { businessName: true } },
+          items: {
+            include: {
+              product: { select: { name: true } },
+            },
+          },
+        },
+      });
+
+      if (orderForInvoice?.shippingEmail) {
+        const shippingAddressParts = [
+          orderForInvoice.shippingAddressLine1,
+          orderForInvoice.shippingAddressLine2,
+          orderForInvoice.shippingCity,
+          orderForInvoice.shippingState,
+          orderForInvoice.shippingPostalCode,
+        ].filter((part): part is string => Boolean(part && part.trim()));
+
+        await emailQueue.add(
+          "order-placed-invoice-email",
+          {
+            orderId: orderForInvoice.id,
+            customerName: orderForInvoice.shippingFullName || "Customer",
+            customerEmail: orderForInvoice.shippingEmail,
+            vendorName: orderForInvoice.vendor.businessName,
+            orderDate: orderForInvoice.createdAt.toISOString(),
+            paymentReference: transactionId,
+            totalAmount: Number(orderForInvoice.totalAmount),
+            shippingAddress: shippingAddressParts.join(", "),
+            items: orderForInvoice.items.map((item) => {
+              const unitPrice = Number(item.price);
+              return {
+                productName: item.product.name,
+                quantity: item.quantity,
+                unitPrice,
+                lineTotal: unitPrice * item.quantity,
+              };
+            }),
+          },
+          {
+            jobId: `order-invoice-${orderForInvoice.id}-${eventId}`,
+          },
+        );
+      }
 
       return { status: "success" };
     }

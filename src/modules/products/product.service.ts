@@ -273,6 +273,47 @@ export class ProductService {
     });
   }
 
+  static async getProductsByVendorId(
+    vendorId: string,
+    options: {
+      page?: number;
+      limit?: number;
+    } = {},
+  ) {
+    const page = options.page || 1;
+    const limit = options.limit || 10;
+    const skip = (page - 1) * limit;
+
+    const whereClause: Prisma.ProductWhereInput = {
+      vendorId,
+      isActive: true,
+    };
+
+    const [products, total] = await Promise.all([
+      prisma.product.findMany({
+        where: whereClause,
+        include: {
+          category: { select: { id: true, name: true } },
+          vendor: { select: { businessName: true, id: true } },
+        },
+        skip,
+        take: limit,
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.product.count({ where: whereClause }),
+    ]);
+
+    return {
+      data: products,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
   static async getTrendingProduct(limit = 20) {
     return prisma.product.findMany({
       where: {

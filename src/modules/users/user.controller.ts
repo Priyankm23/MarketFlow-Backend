@@ -9,7 +9,10 @@ export class UserController {
   }
 
   static async updateProfile(req: Request, res: Response) {
-    const updatedProfile = await UserService.updateProfile(req.user!.userId, req.body);
+    const updatedProfile = await UserService.updateProfile(
+      req.user!.userId,
+      req.body,
+    );
     res.status(200).json({ status: "success", data: updatedProfile });
   }
 }

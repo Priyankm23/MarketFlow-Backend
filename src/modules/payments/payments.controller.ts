@@ -3,7 +3,7 @@ import { PaymentService } from "./payments.service.js";
 
 export class PaymentController {
   // POST /api/payments/:orderId/intent
-  static async initiate(req: Request, res: Response, next: NextFunction) {
+  static async initiate(req: Request, res: Response, _next: NextFunction) {
     try {
       const orderId = Array.isArray(req.params.orderId)
         ? req.params.orderId[0]
@@ -11,7 +11,9 @@ export class PaymentController {
       const userId = req.user!.userId; // Captured from requireAuth middleware
 
       if (!orderId) {
-        res.status(400).json({ success: false, message: "Order ID is required" });
+        res
+          .status(400)
+          .json({ success: false, message: "Order ID is required" });
         return;
       }
 
@@ -28,7 +30,7 @@ export class PaymentController {
   }
 
   // POST /api/payments/webhook
-  static async webhook(req: Request, res: Response, next: NextFunction) {
+  static async webhook(req: Request, res: Response, _next: NextFunction) {
     try {
       // Typically provided by Stripe/Razorpay directly in the JSON POST
       const { eventId, type, data } = req.body;

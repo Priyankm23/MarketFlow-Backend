@@ -20,9 +20,9 @@ export const uploadToCloudinary = async (
 ): Promise<string> => {
   return new Promise((resolve, reject) => {
     const uploadStream = cloudinary.uploader.upload_stream(
-      { 
+      {
         folder: folder,
-        resource_type: "auto" // Crucial for PDFs and handling raw files properly
+        resource_type: "auto", // Crucial for PDFs and handling raw files properly
       },
       (error, result) => {
         if (error) return reject(error);

@@ -25,19 +25,13 @@ async function startServer() {
         `[DB] Runtime target -> host=${dbFingerprint.host} db=${dbFingerprint.name}`,
       );
 
-      if (
-        env.EXPECTED_DB_HOST &&
-        env.EXPECTED_DB_HOST !== dbFingerprint.host
-      ) {
+      if (env.EXPECTED_DB_HOST && env.EXPECTED_DB_HOST !== dbFingerprint.host) {
         console.warn(
           `[DB] Expected host ${env.EXPECTED_DB_HOST}, but connected to ${dbFingerprint.host}`,
         );
       }
 
-      if (
-        env.EXPECTED_DB_NAME &&
-        env.EXPECTED_DB_NAME !== dbFingerprint.name
-      ) {
+      if (env.EXPECTED_DB_NAME && env.EXPECTED_DB_NAME !== dbFingerprint.name) {
         console.warn(
           `[DB] Expected database ${env.EXPECTED_DB_NAME}, but connected to ${dbFingerprint.name}`,
         );

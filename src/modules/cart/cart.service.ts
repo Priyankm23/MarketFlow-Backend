@@ -1,6 +1,7 @@
 import { redis } from "../../config/redis.js";
 import { prisma } from "../../db/prisma.js";
 import { ApiError } from "../../core/errors/ApiError.js";
+import { OrderPricingService } from "../orders/pricing.service.js";
 
 export interface RedisCartItem {
   productId: string;
@@ -13,8 +14,8 @@ export class CartService {
   }
 
   /**
-   * Retrieves the cart from Redis (or DB if cache miss), 
-   * enriches it with real-time DB prices & stock, 
+   * Retrieves the cart from Redis (or DB if cache miss),
+   * enriches it with real-time DB prices & stock,
    * and auto-corrects both Redis and DB if stock has changed.
    */
   static async getCart(userId: string) {
@@ -42,7 +43,18 @@ export class CartService {
     }
 
     if (items.length === 0) {
-      return { items: [], totalAmount: 0 };
+      return {
+        items: [],
+        totalAmount: 0,
+        pricing: {
+          subtotal: 0,
+          platformFee: OrderPricingService.getPlatformFee(),
+          deliveryFee: 0,
+          gst: 0,
+          offerDiscount: 0,
+          grandTotal: OrderPricingService.getPlatformFee(),
+        },
+      };
     }
 
     // Fetch live product data from DB
@@ -51,6 +63,7 @@ export class CartService {
       where: { id: { in: productIds }, isActive: true },
       include: {
         vendor: { select: { businessName: true } },
+        category: { select: { name: true } },
       },
     })) as any[];
 
@@ -90,6 +103,7 @@ export class CartService {
         enrichedItems.push({
           productId: liveProduct.id,
           name: liveProduct.name,
+          categoryName: liveProduct.category.name,
           vendorId: liveProduct.vendorId,
           vendorName: liveProduct.vendor.businessName,
           price: Number(liveProduct.price),
@@ -109,31 +123,66 @@ export class CartService {
         await this.clearCart(userId);
       } else {
         // Update Redis
-        await redis.setex(key, 7 * 24 * 60 * 60, JSON.stringify(validRedisItems));
-        
+        await redis.setex(
+          key,
+          7 * 24 * 60 * 60,
+          JSON.stringify(validRedisItems),
+        );
+
         // Sync adjustments to DB
-        const dbCart = await prisma.cart.findUnique({ where: { userId }});
+        const dbCart = await prisma.cart.findUnique({ where: { userId } });
         if (dbCart) {
           await prisma.$transaction(async (tx: any) => {
             // Clear existing db items
             await tx.cartItem.deleteMany({ where: { cartId: dbCart.id } });
             // Re-insert physically valid items (matching what Redis holds)
             await tx.cartItem.createMany({
-              data: validRedisItems.map(item => ({
+              data: validRedisItems.map((item) => ({
                 cartId: dbCart.id,
                 productId: item.productId,
-                quantity: item.quantity
-              }))
+                quantity: item.quantity,
+              })),
             });
           });
         }
       }
     }
 
+    const pricing = OrderPricingService.calculateFromCartItems(
+      enrichedItems.map((item) => ({
+        productId: item.productId,
+        quantity: item.quantity,
+        unitPrice: item.price,
+        categoryName: item.categoryName,
+      })),
+    );
+
     return {
       items: enrichedItems,
       totalAmount,
+      pricing: pricing.summary,
     };
+  }
+
+  static async getCartOffers(userId: string) {
+    const cart = await this.getCart(userId);
+
+    if (cart.items.length === 0) {
+      return [];
+    }
+
+    const productIds = cart.items.map((item: any) => item.productId);
+    const offers =
+      await OrderPricingService.getLiveOffersForProducts(productIds);
+
+    return offers.reduce<Record<string, any[]>>((acc, offer) => {
+      if (!acc[offer.productId]) {
+        acc[offer.productId] = [];
+      }
+
+      acc[offer.productId]!.push(offer);
+      return acc;
+    }, {});
   }
 
   static async addItem(userId: string, productId: string, quantity: number) {
@@ -153,7 +202,7 @@ export class CartService {
     });
 
     const existingItem = await prisma.cartItem.findUnique({
-      where: { cartId_productId: { cartId: cart.id, productId } }
+      where: { cartId_productId: { cartId: cart.id, productId } },
     });
 
     const newQuantity = (existingItem?.quantity || 0) + quantity;
@@ -170,7 +219,7 @@ export class CartService {
     await prisma.cartItem.upsert({
       where: { cartId_productId: { cartId: cart.id, productId } },
       create: { cartId: cart.id, productId, quantity: newQuantity },
-      update: { quantity: newQuantity }
+      update: { quantity: newQuantity },
     });
 
     // Invalidate Redis cache to force DB reload
@@ -198,11 +247,11 @@ export class CartService {
       );
     }
 
-    const cart = await prisma.cart.findUnique({ where: { userId }});
+    const cart = await prisma.cart.findUnique({ where: { userId } });
     if (!cart) throw new ApiError(404, "Cart is empty");
 
     const existingItem = await prisma.cartItem.findUnique({
-      where: { cartId_productId: { cartId: cart.id, productId } }
+      where: { cartId_productId: { cartId: cart.id, productId } },
     });
 
     if (!existingItem) {
@@ -212,7 +261,7 @@ export class CartService {
     // Update DB
     await prisma.cartItem.update({
       where: { cartId_productId: { cartId: cart.id, productId } },
-      data: { quantity }
+      data: { quantity },
     });
 
     // Invalidate Redis cache to force DB reload
@@ -221,11 +270,13 @@ export class CartService {
   }
 
   static async removeItem(userId: string, productId: string) {
-    const cart = await prisma.cart.findUnique({ where: { userId }});
+    const cart = await prisma.cart.findUnique({ where: { userId } });
     if (cart) {
-      await prisma.cartItem.delete({
-        where: { cartId_productId: { cartId: cart.id, productId } }
-      }).catch(() => {}); // Catch if item didn't exist strictly
+      await prisma.cartItem
+        .delete({
+          where: { cartId_productId: { cartId: cart.id, productId } },
+        })
+        .catch(() => {}); // Catch if item didn't exist strictly
     }
 
     // Invalidate Redis cache
@@ -234,7 +285,7 @@ export class CartService {
   }
 
   static async clearCart(userId: string) {
-    const cart = await prisma.cart.findUnique({ where: { userId }});
+    const cart = await prisma.cart.findUnique({ where: { userId } });
     if (cart) {
       await prisma.cartItem.deleteMany({ where: { cartId: cart.id } });
     }

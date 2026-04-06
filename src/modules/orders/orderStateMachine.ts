@@ -25,7 +25,7 @@ export class OrderStateMachine {
     if (!next.includes(target)) {
       throw new ApiError(
         400,
-        `Invalid order state transition from ${current} to ${target}`
+        `Invalid order state transition from ${current} to ${target}`,
       );
     }
   }

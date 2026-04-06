@@ -23,14 +23,15 @@ export const checkoutSchema = z.object({
   body: z.object({
     shippingAddress: shippingAddressSchema,
     paymentMode: paymentModeSchema.default("ONLINE"),
-    platformFee: z.coerce
-      .number()
-      .refine((value) => value === 29, "Platform fee must be 29"),
-    deliveryFee: z.coerce.number().min(0, "Delivery fee cannot be negative"),
-    gst: z.coerce.number().min(0, "GST cannot be negative"),
-    offerDiscount: z.coerce
-      .number()
-      .min(0, "Offer discount cannot be negative"),
+    appliedOffers: z
+      .array(
+        z.object({
+          productId: z.string().uuid("Invalid product ID"),
+          offerId: z.string().uuid("Invalid offer ID").optional(),
+          couponCode: z.string().trim().min(1).max(64).optional(),
+        }),
+      )
+      .optional(),
   }),
 });
 

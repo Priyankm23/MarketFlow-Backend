@@ -30,6 +30,7 @@ router.get("/trending", ProductController.getTrendingProduct);
 router.get("/new-arrivals", ProductController.getNewArrivalsProducts);
 
 router.get("/", ProductController.getProducts);
+router.get("/vendor/:vendorId", ProductController.getProductsByVendorId);
 router.get(
   "/category/:categoryName",
   ProductController.getProductsByCategoryName,

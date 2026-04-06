@@ -11,6 +11,7 @@ const router = Router();
 router.use(requireAuth, requireRole(["CUSTOMER"]));
 
 router.get("/", CartController.getCart);
+router.get("/offers", CartController.getCartOffers);
 router.post("/items", validate(addToCartSchema), CartController.addItem);
 router.patch(
   "/items/:productId",

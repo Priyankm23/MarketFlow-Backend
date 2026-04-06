@@ -47,6 +47,31 @@ export class ProductController {
     res.status(200).json({ status: "success", ...products });
   }
 
+  static async getProductsByVendorId(req: Request, res: Response) {
+    const vendorId = Array.isArray(req.params.vendorId)
+      ? req.params.vendorId[0]
+      : req.params.vendorId;
+
+    if (!vendorId) {
+      res
+        .status(400)
+        .json({ status: "fail", message: "Vendor ID is required" });
+      return;
+    }
+
+    const page = req.query.page ? parseInt(req.query.page as string, 10) : 1;
+    const limit = req.query.limit
+      ? parseInt(req.query.limit as string, 10)
+      : 10;
+
+    const products = await ProductService.getProductsByVendorId(vendorId, {
+      page,
+      limit,
+    });
+
+    res.status(200).json({ status: "success", ...products });
+  }
+
   static async getProductsByCategoryName(req: Request, res: Response) {
     const rawCategoryName = Array.isArray(req.params.categoryName)
       ? req.params.categoryName[0]

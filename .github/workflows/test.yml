@@ -1,0 +1,58 @@
+name: CI — Type Check & Lint
+
+on:
+  push:
+    branches: ["*"] # runs on every branch push
+  pull_request:
+    branches: ["main"] # runs on PRs targeting main
+
+jobs:
+  typecheck:
+    name: TypeScript Type Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+        # Prisma generates TS types from your schema.
+        # Without this, tsc will complain that @prisma/client types don't exist.
+
+      - name: Run TypeScript type check
+        run: npm run typecheck
+
+  lint:
+    name: ESLint Code Quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+        # ESLint with typescript-eslint also needs Prisma types
+        # to lint files that import from @prisma/client
+
+      - name: Run ESLint
+        run: npm run lint

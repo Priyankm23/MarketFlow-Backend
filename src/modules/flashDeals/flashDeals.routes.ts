@@ -9,11 +9,31 @@ const router = Router();
 router.get("/", FlashDealsController.getActive);
 
 // Vendor creates a flash deal (may be auto-approved or PENDING)
-router.post("/", requireAuth, requireRole(["VENDOR"]), FlashDealsController.create);
+router.post(
+  "/",
+  requireAuth,
+  requireRole(["VENDOR"]),
+  FlashDealsController.create,
+);
 
 // Admin endpoints to review and moderate flash deals
-router.get("/pending", requireAuth, requireRole(["ADMIN"]), FlashDealsController.listPending);
-router.post("/:id/approve", requireAuth, requireRole(["ADMIN"]), FlashDealsController.approve);
-router.post("/:id/reject", requireAuth, requireRole(["ADMIN"]), FlashDealsController.reject);
+router.get(
+  "/pending",
+  requireAuth,
+  requireRole(["ADMIN"]),
+  FlashDealsController.listPending,
+);
+router.post(
+  "/:id/approve",
+  requireAuth,
+  requireRole(["ADMIN"]),
+  FlashDealsController.approve,
+);
+router.post(
+  "/:id/reject",
+  requireAuth,
+  requireRole(["ADMIN"]),
+  FlashDealsController.reject,
+);
 
 export default router;

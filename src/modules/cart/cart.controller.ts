@@ -7,9 +7,18 @@ export class CartController {
     res.status(200).json({ status: "success", data: cart });
   }
 
+  static async getCartOffers(req: Request, res: Response) {
+    const offers = await CartService.getCartOffers(req.user!.userId);
+    res.status(200).json({ status: "success", data: offers });
+  }
+
   static async addItem(req: Request, res: Response) {
     const { productId, quantity } = req.body;
-    const cart = await CartService.addItem(req.user!.userId, productId, quantity);
+    const cart = await CartService.addItem(
+      req.user!.userId,
+      productId,
+      quantity,
+    );
     res.status(200).json({ status: "success", data: cart });
   }
 
@@ -23,7 +32,11 @@ export class CartController {
       return;
     }
 
-    const cart = await CartService.updateItemQuantity(req.user!.userId, productId, quantity);
+    const cart = await CartService.updateItemQuantity(
+      req.user!.userId,
+      productId,
+      quantity,
+    );
     res.status(200).json({ status: "success", data: cart });
   }
 
