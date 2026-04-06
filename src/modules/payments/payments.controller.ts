@@ -3,7 +3,7 @@ import { PaymentService } from "./payments.service.js";
 
 export class PaymentController {
   // POST /api/payments/:orderId/intent
-  static async initiate(req: Request, res: Response, _next: NextFunction) {
+  static async initiate(req: Request, res: Response, next: NextFunction) {
     try {
       const orderId = Array.isArray(req.params.orderId)
         ? req.params.orderId[0]
