@@ -9,6 +9,7 @@ module.exports = {
       autorestart: true,
       watch: false,
       max_memory_restart: '500M',
+      node_args: '--dns-result-order=ipv4first',
       env : {
         NODE_ENV: 'production',
       },
@@ -21,6 +22,7 @@ module.exports = {
       autorestart: true,
       watch: false,
       max_memory_restart: '300M',
+      node_args: '--dns-result-order=ipv4first',
       env : {
         NODE_ENV: 'production',
       },

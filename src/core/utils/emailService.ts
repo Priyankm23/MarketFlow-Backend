@@ -1,6 +1,9 @@
+import dns from "node:dns";
 import nodemailer from "nodemailer";
 import SMTPTransport from "nodemailer/lib/smtp-transport/index.js";
 import { env } from "../../config/env.js";
+
+dns.setDefaultResultOrder("ipv4first");
 
 interface WelcomeEmailPayload {
   name: string;
