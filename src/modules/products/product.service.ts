@@ -55,7 +55,7 @@ export class ProductService {
           oneStarComments: asStringArray(summary?.oneStarComments),
           twoStarComments: asStringArray(summary?.twoStarComments),
           threeStarComments: asStringArray(summary?.threeStarComments),
-          fourStarComme nts: asStringArray(summary?.fourStarComments),
+          fourStarComments: asStringArray(summary?.fourStarComments),
           fiveStarComments: asStringArray(summary?.fiveStarComments),
           oneStar: asStringArray(summary?.oneStarComments).length,
           twoStar: asStringArray(summary?.twoStarComments).length,
@@ -220,9 +220,7 @@ export class ProductService {
     }
 
     const result = {
-      data: products.map((product) =>
-        this.mapProductWithRatings(product),
-      ),
+      data: products.map((product) => this.mapProductWithRatings(product)),
       meta: {
         total,
         page,
