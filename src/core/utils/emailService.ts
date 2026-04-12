@@ -5,6 +5,8 @@ import { env } from "../../config/env.js";
 
 dns.setDefaultResultOrder("ipv4first");
 
+type LookupCallback = (err: NodeJS.ErrnoException | null, address: string, family: number) => void;
+
 interface WelcomeEmailPayload {
   name: string;
   email: string;
@@ -32,14 +34,27 @@ export interface OrderPlacedInvoiceEmailPayload {
 const transporterConfig: SMTPTransport.Options = {
   host: env.SMTP_SERVER,
   port: Number(env.SMTP_PORT),
-  secure: false,
+  secure: Number(env.SMTP_PORT) === 465,
+  requireTLS: Number(env.SMTP_PORT) !== 465,
   auth: {
     user: env.SMTP_USER,
     pass: env.SMTP_PASS,
   },
+  tls: {
+    servername: env.SMTP_SERVER,
+  },
 };
 
-const transporter = nodemailer.createTransport(transporterConfig);
+const transporter = nodemailer.createTransport({
+  ...transporterConfig,
+  lookup: (
+    hostname: string,
+    _options: dns.LookupOneOptions,
+    callback: LookupCallback,
+  ) => {
+    dns.lookup(hostname, { family: 4, all: false }, callback);
+  },
+} as SMTPTransport.Options);
 
 const formatCurrency = (amount: number) => `Rs. ${amount.toFixed(2)}`;
 

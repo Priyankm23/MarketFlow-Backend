@@ -52,6 +52,11 @@ export class ProductService {
 
     const commentsByStar = options.includeComments
       ? {
+          oneStarComments: asStringArray(summary?.oneStarComments),
+          twoStarComments: asStringArray(summary?.twoStarComments),
+          threeStarComments: asStringArray(summary?.threeStarComments),
+          fourStarComme nts: asStringArray(summary?.fourStarComments),
+          fiveStarComments: asStringArray(summary?.fiveStarComments),
           oneStar: asStringArray(summary?.oneStarComments).length,
           twoStar: asStringArray(summary?.twoStarComments).length,
           threeStar: asStringArray(summary?.threeStarComments).length,
@@ -216,7 +221,7 @@ export class ProductService {
 
     const result = {
       data: products.map((product) =>
-        this.mapProductWithRatings(product, { includeComments: true }),
+        this.mapProductWithRatings(product),
       ),
       meta: {
         total,
