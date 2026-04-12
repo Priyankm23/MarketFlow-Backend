@@ -1,11 +1,5 @@
-import dns from "node:dns";
-import nodemailer from "nodemailer";
-import SMTPTransport from "nodemailer/lib/smtp-transport/index.js";
+import { Resend } from "resend";
 import { env } from "../../config/env.js";
-
-dns.setDefaultResultOrder("ipv4first");
-
-type LookupCallback = (err: NodeJS.ErrnoException | null, address: string, family: number) => void;
 
 interface WelcomeEmailPayload {
   name: string;
@@ -31,45 +25,66 @@ export interface OrderPlacedInvoiceEmailPayload {
   items: OrderInvoiceItem[];
 }
 
-const transporterConfig: SMTPTransport.Options = {
-  host: env.SMTP_SERVER,
-  port: Number(env.SMTP_PORT),
-  secure: Number(env.SMTP_PORT) === 465,
-  requireTLS: Number(env.SMTP_PORT) !== 465,
-  auth: {
-    user: env.SMTP_USER,
-    pass: env.SMTP_PASS,
-  },
-  tls: {
-    servername: env.SMTP_SERVER,
-  },
-};
-
-const transporter = nodemailer.createTransport({
-  ...transporterConfig,
-  lookup: (
-    hostname: string,
-    _options: dns.LookupOneOptions,
-    callback: LookupCallback,
-  ) => {
-    dns.lookup(hostname, { family: 4, all: false }, callback);
-  },
-} as SMTPTransport.Options);
+const resend = new Resend(env.RESEND_API_KEY);
 
 const formatCurrency = (amount: number) => `Rs. ${amount.toFixed(2)}`;
 
+const logoBlock = () => {
+  if (env.MARKETFLOW_LOGO_URL) {
+    return `<img src="${env.MARKETFLOW_LOGO_URL}" alt="MarketFlow" style="height:40px;max-width:180px;object-fit:contain;display:block;" />`;
+  }
+
+  return `<div style="display:inline-block;background:#ffffff;color:#e10600;border:2px solid #111111;border-radius:8px;padding:8px 14px;font-size:28px;font-weight:800;line-height:1;letter-spacing:0.5px;">MarketFlow</div>`;
+};
+
+async function sendEmail(params: {
+  to: string;
+  subject: string;
+  html: string;
+}) {
+  const { error } = await resend.emails.send({
+    from: env.RESEND_FROM_EMAIL,
+    to: params.to || "2023002327.gcet@cvmu.edu.in",
+    subject: params.subject,
+    html: params.html,
+  });
+
+  if (error) {
+    throw new Error(`Resend error: ${error.message}`);
+  }
+}
+
 export async function sendWelcomeEmail({ name, email }: WelcomeEmailPayload) {
-  await transporter.sendMail({
-    from: '"MyShop" <no-reply@myshop.com>',
+  await sendEmail({
     to: email,
-    subject: "Welcome to MyShop! 🎉",
+    subject: "Welcome to MarketFlow",
     html: `
-      <h1>Hi ${name}, welcome aboard!</h1>
-      <p>Your account is ready. Start shopping now.</p>
+      <div style="background:#f5f5f5;padding:28px 16px;font-family:Arial,sans-serif;color:#111111;">
+        <div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #d5d5d5;border-radius:14px;overflow:hidden;">
+          <div style="background:#e10600;padding:20px 24px;border-bottom:4px solid #111111;">
+            ${logoBlock()}
+          </div>
+
+          <div style="padding:26px 24px;">
+            <h1 style="margin:0 0 10px 0;font-size:28px;line-height:1.2;color:#111111;">Welcome to MarketFlow, ${name}</h1>
+            <p style="margin:0 0 18px 0;color:#3f3f46;font-size:16px;line-height:1.5;">
+              Your account is ready. Discover trusted products from local sellers and place your first order in minutes.
+            </p>
+
+            <div style="background:#111111;border-left:4px solid #e10600;border-radius:8px;padding:14px 16px;color:#ffffff;">
+              <p style="margin:0;font-size:14px;line-height:1.5;">
+                Need help? Reply to this email and our support team will assist you.
+              </p>
+            </div>
+
+            <p style="margin:20px 0 0 0;color:#71717a;font-size:13px;">This is an automated email from MarketFlow.</p>
+          </div>
+        </div>
+      </div>
     `,
   });
 
-  console.log(`📧 Welcome email sent to ${email}`);
+  console.log(`Welcome email sent to ${email}`);
 }
 
 export async function sendOrderPlacedInvoiceEmail(
@@ -88,41 +103,50 @@ export async function sendOrderPlacedInvoiceEmail(
     )
     .join("");
 
-  await transporter.sendMail({
-    from: '"MyShop Billing" <no-reply@myshop.com>',
+  await sendEmail({
     to: payload.customerEmail,
     subject: `Invoice for Order ${payload.orderId}`,
     html: `
-      <div style="font-family:Arial,sans-serif;max-width:720px;margin:0 auto;padding:20px;color:#111827;">
-        <h1 style="margin-bottom:4px;">Order Invoice</h1>
-        <p style="margin-top:0;color:#6b7280;">Thank you for your purchase, ${payload.customerName}.</p>
+      <div style="background:#f5f5f5;padding:28px 16px;font-family:Arial,sans-serif;color:#111111;">
+        <div style="max-width:760px;margin:0 auto;background:#ffffff;border:1px solid #d5d5d5;border-radius:14px;overflow:hidden;">
+          <div style="background:#e10600;padding:20px 24px;border-bottom:4px solid #111111;">
+            ${logoBlock()}
+          </div>
 
-        <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:12px;margin:16px 0;">
-          <p style="margin:4px 0;"><strong>Order ID:</strong> ${payload.orderId}</p>
-          <p style="margin:4px 0;"><strong>Order Date:</strong> ${payload.orderDate}</p>
-          <p style="margin:4px 0;"><strong>Vendor:</strong> ${payload.vendorName}</p>
-          <p style="margin:4px 0;"><strong>Payment Ref:</strong> ${payload.paymentReference}</p>
-          <p style="margin:4px 0;"><strong>Shipping Address:</strong> ${payload.shippingAddress}</p>
-        </div>
+          <div style="padding:22px 24px;">
+            <h1 style="margin:0 0 6px 0;font-size:26px;color:#111111;">Order Invoice</h1>
+            <p style="margin:0;color:#3f3f46;">Thank you for your purchase, ${payload.customerName}.</p>
 
-        <table style="width:100%;border-collapse:collapse;">
-          <thead>
-            <tr>
-              <th style="text-align:left;padding:8px;border-bottom:2px solid #d1d5db;">Product</th>
-              <th style="text-align:center;padding:8px;border-bottom:2px solid #d1d5db;">Qty</th>
-              <th style="text-align:right;padding:8px;border-bottom:2px solid #d1d5db;">Unit Price</th>
-              <th style="text-align:right;padding:8px;border-bottom:2px solid #d1d5db;">Line Total</th>
-            </tr>
-          </thead>
-          <tbody>${rowsHtml}</tbody>
-        </table>
+            <div style="background:#ffffff;border:1px solid #111111;border-radius:10px;padding:12px;margin:18px 0;">
+              <p style="margin:4px 0;"><strong>Order ID:</strong> ${payload.orderId}</p>
+              <p style="margin:4px 0;"><strong>Order Date:</strong> ${payload.orderDate}</p>
+              <p style="margin:4px 0;"><strong>Vendor:</strong> ${payload.vendorName}</p>
+              <p style="margin:4px 0;"><strong>Payment Ref:</strong> ${payload.paymentReference}</p>
+              <p style="margin:4px 0;"><strong>Shipping Address:</strong> ${payload.shippingAddress}</p>
+            </div>
 
-        <div style="margin-top:16px;text-align:right;">
-          <p style="font-size:18px;margin:0;"><strong>Total: ${formatCurrency(payload.totalAmount)}</strong></p>
+            <table style="width:100%;border-collapse:collapse;border:1px solid #111111;">
+              <thead>
+                <tr style="background:#111111;color:#ffffff;">
+                  <th style="text-align:left;padding:10px;">Product</th>
+                  <th style="text-align:center;padding:10px;">Qty</th>
+                  <th style="text-align:right;padding:10px;">Unit Price</th>
+                  <th style="text-align:right;padding:10px;">Line Total</th>
+                </tr>
+              </thead>
+              <tbody>${rowsHtml}</tbody>
+            </table>
+
+            <div style="margin-top:16px;text-align:right;">
+              <p style="font-size:20px;margin:0;color:#e10600;"><strong>Total: ${formatCurrency(payload.totalAmount)}</strong></p>
+            </div>
+
+            <p style="margin:16px 0 0 0;color:#71717a;font-size:13px;">This invoice was sent by MarketFlow.</p>
+          </div>
         </div>
       </div>
     `,
   });
 
-  console.log(`📧 Order invoice email sent to ${payload.customerEmail}`);
+  console.log(`Order invoice email sent to ${payload.customerEmail}`);
 }

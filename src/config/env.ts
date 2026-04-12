@@ -35,10 +35,11 @@ export const env = {
   CORS_ORIGIN: getEnvVariable("CORS_ORIGIN"),
   REDIS_URL: getEnvVariable("REDIS_URL"),
 
-  SMTP_SERVER: getEnvVariable("SMTP_SERVER"),
-  SMTP_PORT: getEnvVariable("SMTP_PORT"),
-  SMTP_USER: getEnvVariable("SMTP_USER"),
-  SMTP_PASS: getEnvVariable("SMTP_PASS"),
+  RESEND_API_KEY: getEnvVariable("RESEND_API_KEY"),
+  RESEND_FROM_EMAIL:
+    process.env.RESEND_FROM_EMAIL?.trim() ||
+    "MarketFlow <onboarding@resend.dev>",
+  MARKETFLOW_LOGO_URL: process.env.MARKETFLOW_LOGO_URL?.trim() || undefined,
 
   EXPECTED_DB_HOST: process.env.EXPECTED_DB_HOST?.trim() || undefined,
   EXPECTED_DB_NAME: process.env.EXPECTED_DB_NAME?.trim() || undefined,
