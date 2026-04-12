@@ -18,8 +18,6 @@ export const createProductSchema = z.object({
         (val) => !isNaN(parseInt(val, 10)) && parseInt(val, 10) >= 0,
         "Stock must be a non-negative integer",
       ),
-    reviewCount: z.coerce.number().int().min(0).optional(),
-    rating: z.coerce.number().min(0).max(5).optional(),
     warranty: z.string().min(1).max(120).optional(),
     returnPolicy: z.string().min(1).max(250).optional(),
     categoryId: z.string().uuid("Invalid Category ID"),
@@ -38,8 +36,6 @@ export const updateProductSchema = z.object({
       .string()
       .refine((val) => !isNaN(parseInt(val, 10)) && parseInt(val, 10) >= 0)
       .optional(),
-    reviewCount: z.coerce.number().int().min(0).optional(),
-    rating: z.coerce.number().min(0).max(5).optional(),
     warranty: z.string().min(1).max(120).optional(),
     returnPolicy: z.string().min(1).max(250).optional(),
     categoryId: z.string().uuid().optional(),
@@ -49,9 +45,10 @@ export const updateProductSchema = z.object({
 
 export const rateProductSchema = z.object({
   body: z.object({
-    rating: z
+    rating: z.coerce
       .number()
       .min(1, "Rating must be at least 1")
       .max(5, "Rating must be at most 5"),
+    comment: z.string().min(1).max(2000).optional(),
   }),
 });

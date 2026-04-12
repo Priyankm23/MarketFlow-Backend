@@ -140,7 +140,7 @@ export class ProductController {
     const productId = Array.isArray(req.params.id)
       ? req.params.id[0]
       : req.params.id;
-    const { rating } = req.body;
+    const { rating, comment } = req.body;
     const userId = req.user?.userId;
 
     if (!productId) {
@@ -155,10 +155,33 @@ export class ProductController {
       return;
     }
 
+    let uploadedImageUrls: string[] = [];
+
+    if (req.files && !Array.isArray(req.files)) {
+      const ratingImages = [
+        ...(req.files["images"] ?? []),
+        ...(req.files["image"] ?? []),
+        ...(req.files["images[]"] ?? []),
+      ];
+
+      if (ratingImages.length > 0) {
+        uploadedImageUrls = await Promise.all(
+          ratingImages.map((file) =>
+            uploadToCloudinary(file.buffer, "reviews"),
+          ),
+        );
+      }
+    }
+
+    const imageUrls =
+      uploadedImageUrls.length > 0 ? uploadedImageUrls : undefined;
+
     const updatedProduct = await ProductService.rateProduct(
       productId,
       userId,
       rating,
+      comment,
+      imageUrls,
     );
     res.status(200).json({ status: "success", data: updatedProduct });
   }

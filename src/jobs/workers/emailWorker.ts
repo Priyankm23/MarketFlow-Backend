@@ -4,6 +4,9 @@ import {
   sendOrderPlacedInvoiceEmail,
   sendWelcomeEmail,
 } from "../../core/utils/emailService.js";
+import dns from "node:dns";
+
+dns.setDefaultResultOrder("ipv4first");
 
 const worker = new Worker(
   "emailQueue",

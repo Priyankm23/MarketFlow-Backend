@@ -68,7 +68,7 @@ model User {
   sessions      Session[]
   orders        Order[]
   cart          Cart?
-  ratings       ProductRating[]
+  reviews       ProductReview[]
   approvals     Offer[]  @relation("OfferApprovedBy")
 
   createdAt     DateTime @default(now())
@@ -152,7 +152,6 @@ model Product {
   price        Decimal
   stock        Int
   reviewCount  Int      @default(0)
-  rating       Float    @default(0)
   warranty     String?
   returnPolicy String?
   isActive     Boolean  @default(true)
@@ -168,7 +167,8 @@ model Product {
   orderItems   OrderItem[]
   reservations InventoryReservation[]
   offers       Offer[]
-  ratings      ProductRating[]
+  reviews      ProductReview[]
+  ratingSummary ProductRatingSummary?
 
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -178,11 +178,13 @@ model Product {
   @@index([price])
 }
 
-model ProductRating {
+model ProductReview {
   id        String   @id @default(uuid())
   userId    String
   productId String
   rating    Int
+  comment   String?
+  imageUrls String[] @default([])
   
   user      User     @relation(fields: [userId], references: [id])
   product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
@@ -192,6 +194,28 @@ model ProductRating {
 
   @@unique([userId, productId])
   @@index([productId])
+}
+
+model ProductRatingSummary {
+  id                String   @id @default(uuid())
+  productId         String   @unique
+
+  oneStarCount      Int      @default(0)
+  twoStarCount      Int      @default(0)
+  threeStarCount    Int      @default(0)
+  fourStarCount     Int      @default(0)
+  fiveStarCount     Int      @default(0)
+
+  oneStarComments   Json     @default("[]")
+  twoStarComments   Json     @default("[]")
+  threeStarComments Json     @default("[]")
+  fourStarComments  Json     @default("[]")
+  fiveStarComments  Json     @default("[]")
+
+  product           Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }
 
 model Offer {

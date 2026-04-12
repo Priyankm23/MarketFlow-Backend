@@ -153,7 +153,6 @@ export class CartService {
         productId: item.productId,
         quantity: item.quantity,
         unitPrice: item.price,
-        categoryName: item.categoryName,
       })),
     );
 

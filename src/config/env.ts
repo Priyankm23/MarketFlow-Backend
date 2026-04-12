@@ -50,4 +50,7 @@ export const env = {
   FLASH_DEAL_AUTO_APPROVE_MIN_REVIEWS: Number(
     process.env.FLASH_DEAL_AUTO_APPROVE_MIN_REVIEWS ?? 3,
   ),
+
+  STRIPE_SECRET_KEY: getEnvVariable("STRIPE_SECRET_KEY"),
+  STRIPE_WEBHOOK_SECRET: getEnvVariable("STRIPE_WEBHOOK_SECRET"),
 };

@@ -1,9 +1,14 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import app from "./app.js";
 import { prisma } from "./db/prisma.js";
 import { env } from "./config/env.js";
 import { cleanupSessions } from "./jobs/cleanupSessions.js";
 import { runInventoryCleanup } from "./jobs/inventoryCleanup.js";
 import { startFlashDealsCacheRefresher } from "./jobs/refreshFlashDealsCache.js";
+import dns from "node:dns";
+dns.setDefaultResultOrder("ipv4first");
 
 function getDatabaseFingerprint(databaseUrl: string) {
   try {
@@ -59,7 +64,7 @@ async function startServer() {
       60 * 5 * 1000,
     );
 
-    // Start flash-deals cache refresher in background
+    //Start flash-deals cache refresher in background
     startFlashDealsCacheRefresher().catch((err) => {
       console.error("Failed to start flash deals refresher:", err);
     });

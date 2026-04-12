@@ -27,6 +27,10 @@ export class AuthService {
       throw new ApiError(409, "Email already in use");
     }
 
+    if (data.role === "ADMIN") {
+      throw new ApiError(401, "Admin registration not allowed");
+    }
+
     const hashedPassword = await hashPassword(data.password);
 
     const user = await prisma.user.create({

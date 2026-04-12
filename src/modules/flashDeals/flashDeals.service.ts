@@ -47,7 +47,7 @@ export class FlashDealsService {
               imageUrls: true,
               vendorId: true,
               vendor: { select: { businessName: true } },
-              rating: true,
+              ratingSummary: true,
             },
           },
         },
@@ -97,7 +97,15 @@ export class FlashDealsService {
           stock: o.product.stock,
           imageUrl: o.product.imageUrl,
           imageUrls: o.product.imageUrls,
-          rating: o.product.rating,
+          ratingBreakdown: o.product.ratingSummary
+            ? {
+                oneStarCount: o.product.ratingSummary.oneStarCount,
+                twoStarCount: o.product.ratingSummary.twoStarCount,
+                threeStarCount: o.product.ratingSummary.threeStarCount,
+                fourStarCount: o.product.ratingSummary.fourStarCount,
+                fiveStarCount: o.product.ratingSummary.fiveStarCount,
+              }
+            : null,
           vendorId: o.product.vendorId,
           vendorBusinessName: o.product.vendor?.businessName ?? null,
         },
@@ -170,9 +178,9 @@ export class FlashDealsService {
       throw new Error("discountPercentage must be between 1 and 60");
     if (data.startAt >= data.endAt)
       throw new Error("startAt must be before endAt");
-    const maxDurationMs = 120 * 60 * 60 * 1000; // 120 hours
+    const maxDurationMs = 120 * 60 * 60 * 1000; // 5 days
     if (data.endAt.getTime() - data.startAt.getTime() > maxDurationMs)
-      throw new Error("Flash deal duration cannot exceed 120 hours");
+      throw new Error("Flash deal duration cannot exceed 120 hours / 5 days");
 
     // Determine auto-approval using vendor status + rating thresholds
     // Fetch vendor product ids
@@ -186,7 +194,7 @@ export class FlashDealsService {
     let avgRating: number | null = null;
     let ratingCount = 0;
     if (vendorProductIds.length > 0) {
-      const agg = await prisma.productRating.aggregate({
+      const agg = await prisma.productReview.aggregate({
         where: { productId: { in: vendorProductIds } },
         _avg: { rating: true },
         _count: { rating: true },
@@ -243,6 +251,86 @@ export class FlashDealsService {
     return created;
   }
 
+  static async createNonFlashOffer(
+    vendorUserId: string,
+    data: {
+      productId: string;
+      discountPercentage: number;
+      startAt: Date;
+      endAt: Date;
+      offerName?: string;
+      couponCode?: string | null;
+      termsAndConditions?: string | null;
+    },
+  ) {
+    const vendor = await prisma.vendor.findUnique({
+      where: { userId: vendorUserId },
+    });
+    if (!vendor) throw new Error("Vendor profile not found");
+
+    const product = await prisma.product.findUnique({
+      where: { id: data.productId },
+    });
+    if (!product) throw new Error("Product not found");
+    if (product.vendorId !== vendor.id) {
+      throw new Error("You can only create offers for your own products");
+    }
+
+    if (data.discountPercentage <= 0 || data.discountPercentage > 60) {
+      throw new Error("discountPercentage must be between 1 and 60");
+    }
+    if (data.startAt >= data.endAt) {
+      throw new Error("startAt must be before endAt");
+    }
+
+    const maxDurationMs = 14 * 24 * 60 * 60 * 1000; // 14 days
+    if (data.endAt.getTime() - data.startAt.getTime() > maxDurationMs) {
+      throw new Error("Offer duration cannot exceed 14 days");
+    }
+
+    return prisma.offer.create({
+      data: {
+        productId: data.productId,
+        offerName: data.offerName ?? "Offer",
+        discountPercentage: data.discountPercentage,
+        couponCode: data.couponCode ?? null,
+        termsAndConditions: data.termsAndConditions ?? null,
+        isActive: true,
+        isFlashDeal: false,
+        startAt: data.startAt,
+        endAt: data.endAt,
+        approvalStatus: "APPROVED",
+      },
+    });
+  }
+
+  static async getNonFlashOffersByProduct(productId: string) {
+    const now = new Date();
+
+    return prisma.offer.findMany({
+      where: {
+        productId,
+        isFlashDeal: false,
+        isActive: true,
+        startAt: { lte: now },
+        endAt: { gt: now },
+      },
+      orderBy: [{ endAt: "asc" }, { createdAt: "desc" }],
+      select: {
+        id: true,
+        offerName: true,
+        discountPercentage: true,
+        couponCode: true,
+        termsAndConditions: true,
+        startAt: true,
+        endAt: true,
+        isActive: true,
+        isFlashDeal: true,
+        productId: true,
+      },
+    });
+  }
+
   static async listPendingOffers() {
     const offers = await prisma.offer.findMany({
       where: { isFlashDeal: true, approvalStatus: "PENDING" },
@@ -263,8 +351,8 @@ export class FlashDealsService {
                 businessName: true,
               },
             },
-            rating: true,
             reviewCount: true,
+            ratingSummary: true,
           },
         },
       },
@@ -291,7 +379,7 @@ export class FlashDealsService {
         let avgRating: number | null = null;
         let ratingCount = 0;
         if (vendorProductIds.length > 0) {
-          const agg = await prisma.productRating.aggregate({
+          const agg = await prisma.productReview.aggregate({
             where: { productId: { in: vendorProductIds } },
             _avg: { rating: true },
             _count: { rating: true },
@@ -452,7 +540,7 @@ export class FlashDealsService {
               imageUrls: true,
               vendorId: true,
               vendor: { select: { businessName: true } },
-              rating: true,
+              ratingSummary: true,
             },
           },
         },
@@ -501,7 +589,15 @@ export class FlashDealsService {
           stock: o.product.stock,
           imageUrl: o.product.imageUrl,
           imageUrls: o.product.imageUrls,
-          rating: o.product.rating,
+          ratingBreakdown: o.product.ratingSummary
+            ? {
+                oneStarCount: o.product.ratingSummary.oneStarCount,
+                twoStarCount: o.product.ratingSummary.twoStarCount,
+                threeStarCount: o.product.ratingSummary.threeStarCount,
+                fourStarCount: o.product.ratingSummary.fourStarCount,
+                fiveStarCount: o.product.ratingSummary.fiveStarCount,
+              }
+            : null,
           vendorId: o.product.vendorId,
           vendorBusinessName: o.product.vendor?.businessName ?? null,
         },

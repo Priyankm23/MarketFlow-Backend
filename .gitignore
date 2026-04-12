@@ -39,8 +39,6 @@ docs
 
 tests
 
-prisma/migrations
-
 public/
 
 scripts/
@@ -48,3 +46,5 @@ scripts/
 mock/
 
 shadow_backup.sql
+
+lint_errors.txt

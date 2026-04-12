@@ -8,7 +8,7 @@ export const deliveryRoutes = Router();
 deliveryRoutes.get(
   "/profile",
   requireAuth,
-  requireRole(["DELIVERY_PARTNER"]),
+  requireRole(["DELIVERY_PARTNER,VENDOR"]),
   DeliveryController.getProfile,
 );
 
@@ -23,7 +23,7 @@ deliveryRoutes.get(
 deliveryRoutes.post(
   "/profile",
   requireAuth,
-  requireRole(["DELIVERY_PARTNER,VENDOR"]),
+  requireRole(["DELIVERY_PARTNER"]),
   DeliveryController.updateProfile,
 );
 
@@ -49,7 +49,7 @@ deliveryRoutes.post(
   DeliveryController.markDelivered,
 );
 
-// Admin trigger for assignment (optional, for testing)
+// vendor trigger for assignment (optional, for testing)
 deliveryRoutes.post(
   "/orders/:orderId/assign",
   requireAuth,

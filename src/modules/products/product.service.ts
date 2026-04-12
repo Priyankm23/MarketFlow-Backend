@@ -12,8 +12,6 @@ export interface CreateProductData {
   description: string;
   price: string | number;
   stock: string | number;
-  reviewCount?: string | number;
-  rating?: string | number;
   warranty?: string;
   returnPolicy?: string;
   imageUrl?: string;
@@ -22,6 +20,62 @@ export interface CreateProductData {
 }
 
 export class ProductService {
+  private static mapProductWithRatings(
+    product: any,
+    options: { includeComments?: boolean } = {},
+  ) {
+    const summary = product.ratingSummary;
+    const one = Number(summary?.oneStarCount ?? 0);
+    const two = Number(summary?.twoStarCount ?? 0);
+    const three = Number(summary?.threeStarCount ?? 0);
+    const four = Number(summary?.fourStarCount ?? 0);
+    const five = Number(summary?.fiveStarCount ?? 0);
+    const total = one + two + three + four + five;
+
+    const averageRating =
+      total > 0
+        ? Number(
+            (
+              (1 * one + 2 * two + 3 * three + 4 * four + 5 * five) /
+              total
+            ).toFixed(2),
+          )
+        : 0;
+
+    const asStringArray = (value: unknown): string[] => {
+      if (Array.isArray(value)) {
+        return value.filter((item): item is string => typeof item === "string");
+      }
+
+      return [];
+    };
+
+    const commentsByStar = options.includeComments
+      ? {
+          oneStar: asStringArray(summary?.oneStarComments).length,
+          twoStar: asStringArray(summary?.twoStarComments).length,
+          threeStar: asStringArray(summary?.threeStarComments).length,
+          fourStar: asStringArray(summary?.fourStarComments).length,
+          fiveStar: asStringArray(summary?.fiveStarComments).length,
+        }
+      : undefined;
+
+    const { ratingSummary: _ratingSummary, ...productWithoutSummary } = product;
+
+    return {
+      ...productWithoutSummary,
+      averageRating,
+      ratingBreakdown: {
+        oneStarCount: one,
+        twoStarCount: two,
+        threeStarCount: three,
+        fourStarCount: four,
+        fiveStarCount: five,
+      },
+      ...(options.includeComments ? { commentsByStar } : {}),
+    };
+  }
+
   private static isMissingColumnError(error: unknown): boolean {
     return (
       error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -63,14 +117,6 @@ export class ProductService {
         description: data.description,
         price: data.price,
         stock: parseInt(data.stock as string, 10),
-        reviewCount:
-          data.reviewCount !== undefined
-            ? parseInt(String(data.reviewCount), 10)
-            : undefined,
-        rating:
-          data.rating !== undefined
-            ? parseFloat(String(data.rating))
-            : undefined,
         warranty: data.warranty?.trim() || undefined,
         returnPolicy: data.returnPolicy?.trim() || undefined,
         imageUrl: data.imageUrl,
@@ -81,7 +127,7 @@ export class ProductService {
 
     await this.invalidateCache();
 
-    return product;
+    return this.mapProductWithRatings(product);
   }
 
   static async getProducts(filters: {
@@ -133,6 +179,7 @@ export class ProductService {
           include: {
             category: { select: { id: true, name: true } },
             vendor: { select: { businessName: true, id: true } },
+            ratingSummary: true,
           },
           skip,
           take: limit,
@@ -153,6 +200,7 @@ export class ProductService {
           include: {
             category: { select: { id: true, name: true } },
             vendor: { select: { businessName: true, id: true } },
+            ratingSummary: true,
             offers: {
               where: { isActive: true },
               take: 1,
@@ -167,7 +215,9 @@ export class ProductService {
     }
 
     const result = {
-      data: products,
+      data: products.map((product) =>
+        this.mapProductWithRatings(product, { includeComments: true }),
+      ),
       meta: {
         total,
         page,
@@ -189,6 +239,19 @@ export class ProductService {
       include: {
         vendor: { select: { id: true, businessName: true } },
         category: true,
+        ratingSummary: true,
+        reviews: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+          orderBy: { updatedAt: "desc" },
+          take: 50,
+        },
       },
     });
 
@@ -196,13 +259,15 @@ export class ProductService {
       throw new ApiError(404, "Product not found");
     }
 
-    return product;
+    return this.mapProductWithRatings(product, { includeComments: true });
   }
 
   static async rateProduct(
     productId: string,
     userId: string,
     newRating: number,
+    comment?: string,
+    imageUrls?: string[],
   ) {
     const updatedProduct = await prisma.$transaction(async (tx: any) => {
       const product = await tx.product.findUnique({
@@ -213,37 +278,119 @@ export class ProductService {
         throw new ApiError(404, "Product not found");
       }
 
-      // Upsert the rating for this user and product
-      await tx.productRating.upsert({
+      // Upsert a single user review per product to keep review history authoritative.
+      await tx.productReview.upsert({
         where: {
           userId_productId: {
             userId,
             productId,
           },
         },
-        update: { rating: newRating },
+        update: {
+          rating: newRating,
+          comment: comment?.trim() || null,
+          imageUrls: Array.isArray(imageUrls) ? imageUrls : undefined,
+        },
         create: {
           userId,
           productId,
           rating: newRating,
+          comment: comment?.trim() || null,
+          imageUrls: Array.isArray(imageUrls) ? imageUrls : undefined,
         },
       });
 
-      // Recalculate average rating and review count
-      const aggregates = await tx.productRating.aggregate({
+      const reviews = await tx.productReview.findMany({
         where: { productId },
-        _avg: { rating: true },
-        _count: { rating: true },
+        select: {
+          rating: true,
+          comment: true,
+          updatedAt: true,
+        },
+        orderBy: { updatedAt: "desc" },
       });
 
-      const avgRating = aggregates._avg.rating || 0;
-      const reviewCount = aggregates._count.rating || 0;
+      const oneStarCount = reviews.filter(
+        (review: any) => review.rating === 1,
+      ).length;
+      const twoStarCount = reviews.filter(
+        (review: any) => review.rating === 2,
+      ).length;
+      const threeStarCount = reviews.filter(
+        (review: any) => review.rating === 3,
+      ).length;
+      const fourStarCount = reviews.filter(
+        (review: any) => review.rating === 4,
+      ).length;
+      const fiveStarCount = reviews.filter(
+        (review: any) => review.rating === 5,
+      ).length;
 
-      return tx.product.update({
+      const oneStarComments = reviews
+        .filter((review: any) => review.rating === 1 && review.comment)
+        .map((review: any) => review.comment);
+      const twoStarComments = reviews
+        .filter((review: any) => review.rating === 2 && review.comment)
+        .map((review: any) => review.comment);
+      const threeStarComments = reviews
+        .filter((review: any) => review.rating === 3 && review.comment)
+        .map((review: any) => review.comment);
+      const fourStarComments = reviews
+        .filter((review: any) => review.rating === 4 && review.comment)
+        .map((review: any) => review.comment);
+      const fiveStarComments = reviews
+        .filter((review: any) => review.rating === 5 && review.comment)
+        .map((review: any) => review.comment);
+
+      await tx.productRatingSummary.upsert({
+        where: { productId },
+        update: {
+          oneStarCount,
+          twoStarCount,
+          threeStarCount,
+          fourStarCount,
+          fiveStarCount,
+          oneStarComments,
+          twoStarComments,
+          threeStarComments,
+          fourStarComments,
+          fiveStarComments,
+        },
+        create: {
+          productId,
+          oneStarCount,
+          twoStarCount,
+          threeStarCount,
+          fourStarCount,
+          fiveStarCount,
+          oneStarComments,
+          twoStarComments,
+          threeStarComments,
+          fourStarComments,
+          fiveStarComments,
+        },
+      });
+
+      const reviewCount = reviews.length;
+
+      await tx.product.update({
         where: { id: productId },
         data: {
           reviewCount,
-          rating: avgRating,
+        },
+      });
+
+      return tx.product.findUnique({
+        where: { id: productId },
+        include: {
+          ratingSummary: true,
+          reviews: {
+            include: {
+              user: { select: { id: true, name: true } },
+            },
+            orderBy: { updatedAt: "desc" },
+            take: 50,
+          },
         },
       });
     });
@@ -251,26 +398,33 @@ export class ProductService {
     await this.invalidateCache();
     // Invalidate product's individual cache if we add it in the future
 
-    return updatedProduct;
+    return this.mapProductWithRatings(updatedProduct, {
+      includeComments: true,
+    });
   }
 
   static async getProductsByCategoryName(categoryName: string) {
-    return prisma.product.findMany({
-      where: {
-        isActive: true,
-        category: {
-          name: {
-            equals: categoryName,
-            mode: "insensitive",
+    return prisma.product
+      .findMany({
+        where: {
+          isActive: true,
+          category: {
+            name: {
+              equals: categoryName,
+              mode: "insensitive",
+            },
           },
         },
-      },
-      include: {
-        category: { select: { id: true, name: true } },
-        vendor: { select: { businessName: true, id: true } },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+        include: {
+          category: { select: { id: true, name: true } },
+          vendor: { select: { businessName: true, id: true } },
+          ratingSummary: true,
+        },
+        orderBy: { createdAt: "desc" },
+      })
+      .then((products) =>
+        products.map((product) => this.mapProductWithRatings(product)),
+      );
   }
 
   static async getProductsByVendorId(
@@ -295,6 +449,7 @@ export class ProductService {
         include: {
           category: { select: { id: true, name: true } },
           vendor: { select: { businessName: true, id: true } },
+          ratingSummary: true,
         },
         skip,
         take: limit,
@@ -304,7 +459,7 @@ export class ProductService {
     ]);
 
     return {
-      data: products,
+      data: products.map((product) => this.mapProductWithRatings(product)),
       meta: {
         total,
         page,
@@ -314,33 +469,47 @@ export class ProductService {
     };
   }
 
-  static async getTrendingProduct(limit = 20) {
-    return prisma.product.findMany({
+  static async getTrendingProduct(limit = 10) {
+    const products = await prisma.product.findMany({
       where: {
-        rating: { gt: 3.5 },
+        isActive: true,
+        reviewCount: { gt: 0 },
       },
       include: {
         category: { select: { id: true, name: true } },
         vendor: { select: { businessName: true, id: true } },
+        ratingSummary: true,
       },
-      orderBy: { rating: "desc" },
-      take: limit,
+      take: Math.max(limit * 2, limit),
     });
+
+    const ranked = products
+      .map((product) => this.mapProductWithRatings(product))
+      .filter((product) => product.averageRating > 3.5)
+      .sort((a, b) => b.averageRating - a.averageRating)
+      .slice(0, limit);
+
+    return ranked;
   }
 
   static async getNewArrivalsProducts(limit = 20) {
-    return prisma.product.findMany({
-      where: {
-        isActive: true,
-        stock: { gt: 0 },
-      },
-      include: {
-        category: { select: { id: true, name: true } },
-        vendor: { select: { businessName: true, id: true } },
-      },
-      orderBy: { createdAt: "desc" },
-      take: limit,
-    });
+    return prisma.product
+      .findMany({
+        where: {
+          isActive: true,
+          stock: { gt: 0 },
+        },
+        include: {
+          category: { select: { id: true, name: true } },
+          vendor: { select: { businessName: true, id: true } },
+          ratingSummary: true,
+        },
+        orderBy: { createdAt: "desc" },
+        take: limit,
+      })
+      .then((products) =>
+        products.map((product) => this.mapProductWithRatings(product)),
+      );
   }
 
   static async createCategory(name: string) {

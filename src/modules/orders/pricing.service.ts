@@ -6,7 +6,6 @@ interface PricingItemInput {
   productId: string;
   quantity: number;
   unitPrice: number;
-  categoryName: string;
 }
 
 interface PricingOfferSelectionInput {
@@ -50,27 +49,10 @@ export interface CartPricingResult {
 }
 
 const PLATFORM_FEE = 29;
-const BASE_DELIVERY_FEE = 49;
-const FREE_DELIVERY_THRESHOLD = 499;
-
-const GST_RATE_BY_CATEGORY: Record<string, number> = {
-  Electronics: 18,
-  Fashion: 12,
-  Beauty: 12,
-  "Food & Gourmet": 5,
-  Books: 5,
-  "Toys & Games": 5,
-  "Home & Living": 12,
-  Sports: 5,
-};
+const BASE_DELIVERY_FEE = 40;
 
 function roundTo2(value: number) {
   return Number(value.toFixed(2));
-}
-
-function getGstRateForCategory(categoryName: string) {
-  const normalized = categoryName.trim().toLowerCase();
-  return GST_RATE_BY_CATEGORY[normalized] ?? 12;
 }
 
 export class OrderPricingService {
@@ -203,8 +185,7 @@ export class OrderPricingService {
       items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0),
     );
 
-    const deliveryFee =
-      subtotal >= FREE_DELIVERY_THRESHOLD ? 0 : BASE_DELIVERY_FEE;
+    const deliveryFee = BASE_DELIVERY_FEE;
     const platformFee = PLATFORM_FEE;
 
     const itemBreakdown: ItemPricingBreakdown[] = items.map((item) => {
@@ -217,9 +198,10 @@ export class OrderPricingService {
       const taxableAmount = roundTo2(
         Math.max(lineSubtotal - discountAmount, 0),
       );
-      const gstRate = getGstRateForCategory(item.categoryName);
-      const gstAmount = roundTo2((taxableAmount * gstRate) / 100);
-      const lineTotal = roundTo2(taxableAmount + gstAmount);
+      // GST is treated as already included in the listed product price.
+      const gstRate = 0;
+      const gstAmount = 0;
+      const lineTotal = taxableAmount;
 
       return {
         productId: item.productId,
@@ -238,12 +220,10 @@ export class OrderPricingService {
       itemBreakdown.reduce((sum, item) => sum + item.discountAmount, 0),
     );
 
-    const gst = roundTo2(
-      itemBreakdown.reduce((sum, item) => sum + item.gstAmount, 0),
-    );
+    const gst = 0;
 
     const grandTotal = roundTo2(
-      Math.max(subtotal - offerDiscount + gst + platformFee + deliveryFee, 0),
+      Math.max(subtotal - offerDiscount + platformFee + deliveryFee, 0),
     );
 
     return {

@@ -66,6 +66,7 @@ const corsOptions: cors.CorsOptions = {
 
 app.use(cors(corsOptions));
 app.use(cookieParser());
+app.use("/api/v1/payments/webhook", express.raw({ type: "application/json" }));
 app.use(express.json());
 
 // API Routes

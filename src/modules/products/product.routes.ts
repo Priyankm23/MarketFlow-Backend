@@ -40,6 +40,11 @@ router.get("/:id", ProductController.getProductById);
 router.post(
   "/:id/rate",
   requireAuth,
+  upload.fields([
+    { name: "images", maxCount: 5 },
+    { name: "image", maxCount: 1 },
+    { name: "images[]", maxCount: 5 },
+  ]),
   validate(rateProductSchema),
   ProductController.rateProduct,
 );

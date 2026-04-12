@@ -17,7 +17,7 @@ export async function startFlashDealsCacheRefresher() {
 
       // Decide next run time: run slightly before nearest end to ensure update
       const now = Date.now();
-      let nextMs = 30 * 1000; // default 30s
+      let nextMs = 60 * 1000; // default 30s
 
       if (nearestEnd) {
         // Schedule ~2 seconds before expiry, but at least 5s from now

@@ -31,6 +31,43 @@ export class FlashDealsController {
     }
   }
 
+  static async createNonFlash(req: Request, res: Response) {
+    try {
+      const user = req.user;
+      if (!user) throw new ApiError(401, "Unauthorized");
+      const body = req.body;
+      const created = await FlashDealsService.createNonFlashOffer(user.userId, {
+        productId: body.productId,
+        discountPercentage: Number(body.discountPercentage),
+        startAt: new Date(body.startAt),
+        endAt: new Date(body.endAt),
+        offerName: body.offerName,
+        couponCode: body.couponCode ?? null,
+        termsAndConditions: body.termsAndConditions ?? null,
+      });
+      res.status(201).json({ status: "success", data: created });
+    } catch (err: any) {
+      throw err instanceof ApiError
+        ? err
+        : new ApiError(400, err.message || "Invalid request");
+    }
+  }
+
+  static async getNonFlashByProduct(req: Request, res: Response) {
+    const rawProductId = Array.isArray(req.params.productId)
+      ? req.params.productId[0]
+      : req.params.productId;
+    const productId = rawProductId?.trim();
+
+    if (!productId) {
+      throw new ApiError(400, "Product ID is required");
+    }
+
+    const offers =
+      await FlashDealsService.getNonFlashOffersByProduct(productId);
+    res.status(200).json({ status: "success", data: offers });
+  }
+
   static async listPending(req: Request, res: Response) {
     const pending = await FlashDealsService.listPendingOffers();
     res.status(200).json({ status: "success", data: pending });

@@ -1,16 +1,18 @@
 import { prisma } from "../../db/prisma.js";
 import { ApiError } from "../../core/errors/ApiError.js";
-import crypto from "crypto";
 import { emailQueue } from "../../jobs/queues/queue.js";
 import {
   OrderStatus,
   PaymentStatus,
   Prisma,
 } from "../../../generated/prisma/index.js";
+import Stripe from "stripe";
+import { stripe } from "./stripe.service.js";
+import { env } from "../../config/env.js";
 
 export class PaymentService {
   /**
-   * Simulates initiating a payment intent with a payment gateway (Like Stripe/Razorpay)
+   * Creates or reuses a Stripe PaymentIntent for the order.
    */
   static async initiatePayment(orderId: string, userId: string) {
     const order = await prisma.order.findUnique({ where: { id: orderId } });
@@ -37,9 +39,17 @@ export class PaymentService {
       );
     }
 
-    // Check if an initiated payment already exists to prevent duplicate intents
+    const amount = Number(order.totalAmount);
+    const amountInSmallestUnit = Math.round(amount * 100);
+
+    if (!Number.isFinite(amountInSmallestUnit) || amountInSmallestUnit <= 0) {
+      throw new ApiError(400, "Invalid order amount for payment intent");
+    }
+
+    // Check if an initiated payment already exists to prevent duplicate intents.
     let payment = await prisma.payment.findFirst({
       where: { orderId, status: PaymentStatus.INITIATED },
+      orderBy: { createdAt: "desc" },
     });
 
     if (!payment) {
@@ -48,62 +58,176 @@ export class PaymentService {
           orderId,
           amount: order.totalAmount,
           status: PaymentStatus.INITIATED,
-          gatewayRef: `mock_txn_${crypto.randomUUID()}`,
         },
       });
     }
 
-    // Return the mock checkout session details
+    if (payment.gatewayRef) {
+      try {
+        const existingIntent = await stripe.paymentIntents.retrieve(
+          payment.gatewayRef,
+        );
+
+        if (existingIntent.client_secret) {
+          return {
+            paymentId: payment.id,
+            gatewayRef: existingIntent.id,
+            amount: payment.amount,
+            clientSecret: existingIntent.client_secret,
+            publishableKeyHint: "Use STRIPE_PUBLISHABLE_KEY in frontend",
+          };
+        }
+      } catch {
+        // Intent may have been canceled or deleted; create a fresh one.
+      }
+    }
+
+    const intent = await stripe.paymentIntents.create({
+      amount: amountInSmallestUnit,
+      currency: "inr",
+      metadata: {
+        orderId: order.id,
+        userId,
+        paymentId: payment.id,
+      },
+      automatic_payment_methods: {
+        enabled: true,
+      },
+    });
+
+    payment = await prisma.payment.update({
+      where: { id: payment.id },
+      data: {
+        gatewayRef: intent.id,
+      },
+    });
+
+    // Return details frontend needs for Stripe confirmation.
     return {
       paymentId: payment.id,
-      gatewayRef: payment.gatewayRef,
+      gatewayRef: intent.id,
       amount: payment.amount,
-      mockCheckoutUrl: `https://mock-gateway.com/checkout/${payment.gatewayRef}`,
+      clientSecret: intent.client_secret,
+      publishableKeyHint: "Use STRIPE_PUBLISHABLE_KEY in frontend",
     };
   }
 
+  static constructWebhookEvent(payload: Buffer, signature: string) {
+    return stripe.webhooks.constructEvent(
+      payload,
+      signature,
+      env.STRIPE_WEBHOOK_SECRET,
+    );
+  }
+
   /**
-   * Processes the simulated webhook from the mock gateway securely.
+   * Processes Stripe webhook events with strict idempotency checks.
    * Includes strict Idempotency checks.
    */
-  static async processWebhook(eventId: string, type: string, payload: any) {
-    // 1. Idempotency Check: Have we seen this specific webhook event before?
-    const existingEvent = await prisma.webhookEvent.findUnique({
+  static async processWebhook(event: Stripe.Event) {
+    const eventId = event.id;
+    const type = event.type;
+    const payload = event.data.object;
+    const payloadJson = JSON.parse(
+      JSON.stringify(payload),
+    ) as Prisma.InputJsonValue;
+
+    // 1. Idempotency Check: Ignore only if already fully processed.
+    let existingEvent = await prisma.webhookEvent.findUnique({
       where: { eventId },
     });
 
-    if (existingEvent) {
+    if (existingEvent?.processed) {
       console.log(
         `[Webhook] Event ${eventId} already processed. Safely ignoring.`,
       );
       return { status: "ignored", reason: "duplicate" };
     }
 
-    // 2. Save the incoming event immediately
-    await prisma.webhookEvent.create({
-      data: {
-        eventId,
-        type,
-        payload, // Store JSON payload for audit trails
-      },
-    });
+    // 2. Save the incoming event immediately (or continue if an unprocessed one already exists)
+    if (!existingEvent) {
+      try {
+        existingEvent = await prisma.webhookEvent.create({
+          data: {
+            eventId,
+            type,
+            payload: payloadJson, // Store JSON payload for audit trails
+          },
+        });
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2002"
+        ) {
+          existingEvent = await prisma.webhookEvent.findUnique({
+            where: { eventId },
+          });
 
-    const transactionId = payload.transactionId;
-    if (!transactionId) {
-      throw new ApiError(400, "Missing transactionId in webhook payload");
+          if (existingEvent?.processed) {
+            return { status: "ignored", reason: "duplicate" };
+          }
+        } else {
+          throw error;
+        }
+      }
     }
 
-    // 3. Find the Payment record associated with this gateway transaction
-    const payment = await prisma.payment.findUnique({
+    if (
+      type !== "payment_intent.succeeded" &&
+      type !== "payment_intent.payment_failed"
+    ) {
+      await prisma.webhookEvent.update({
+        where: { eventId },
+        data: { processed: true },
+      });
+      return { status: "unhandled_event_type" };
+    }
+
+    const intent = payload as Stripe.PaymentIntent;
+    const transactionId = intent.id;
+    const paymentIdFromMetadata = intent.metadata?.paymentId;
+    const orderIdFromMetadata = intent.metadata?.orderId;
+
+    let payment = await prisma.payment.findUnique({
       where: { gatewayRef: transactionId },
     });
+
+    if (!payment && paymentIdFromMetadata) {
+      payment = await prisma.payment.findUnique({
+        where: { id: paymentIdFromMetadata },
+      });
+
+      if (payment && payment.gatewayRef !== transactionId) {
+        payment = await prisma.payment.update({
+          where: { id: payment.id },
+          data: { gatewayRef: transactionId },
+        });
+      }
+    }
+
+    if (!payment && orderIdFromMetadata) {
+      payment = await prisma.payment.findFirst({
+        where: {
+          orderId: orderIdFromMetadata,
+          status: PaymentStatus.INITIATED,
+        },
+        orderBy: { createdAt: "desc" },
+      });
+
+      if (payment) {
+        payment = await prisma.payment.update({
+          where: { id: payment.id },
+          data: { gatewayRef: transactionId },
+        });
+      }
+    }
 
     if (!payment) {
       throw new ApiError(404, "Payment record not found for this transaction");
     }
 
-    // 4. Handle Mock Success Event
-    if (type === "payment.success") {
+    // 4. Handle Stripe success event
+    if (type === "payment_intent.succeeded") {
       if (payment.status === PaymentStatus.SUCCESS) {
         return { status: "already_paid" };
       }
@@ -126,7 +250,7 @@ export class PaymentService {
           data: {
             orderId: payment.orderId,
             status: OrderStatus.CONFIRMED,
-            note: `Payment successful via webhook. Order confirmed. Txn: ${transactionId}`,
+            note: `Payment successful via Stripe webhook. Order confirmed. Txn: ${transactionId}`,
           },
         });
 
@@ -195,8 +319,8 @@ export class PaymentService {
       return { status: "success" };
     }
 
-    // 5. Handle Mock Failure Event
-    if (type === "payment.failed") {
+    // 5. Handle Stripe failure event
+    if (type === "payment_intent.payment_failed") {
       await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         await tx.payment.update({
           where: { id: payment.id },

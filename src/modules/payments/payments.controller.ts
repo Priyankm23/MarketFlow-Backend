@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from "express";
+import Stripe from "stripe";
 import { PaymentService } from "./payments.service.js";
 
 export class PaymentController {
@@ -32,18 +33,25 @@ export class PaymentController {
   // POST /api/payments/webhook
   static async webhook(req: Request, res: Response, _next: NextFunction) {
     try {
-      // Typically provided by Stripe/Razorpay directly in the JSON POST
-      const { eventId, type, data } = req.body;
+      const signatureHeader = req.headers["stripe-signature"];
+      const signature = Array.isArray(signatureHeader)
+        ? signatureHeader[0]
+        : signatureHeader;
 
-      if (!eventId || !type || !data) {
+      if (!signature) {
         res.status(400).json({
           success: false,
-          message: "Invalid webhook payload structure",
+          message: "Missing Stripe signature header",
         });
         return;
       }
 
-      const result = await PaymentService.processWebhook(eventId, type, data);
+      const rawBody = Buffer.isBuffer(req.body)
+        ? req.body
+        : Buffer.from(JSON.stringify(req.body ?? {}));
+
+      const event = PaymentService.constructWebhookEvent(rawBody, signature);
+      const result = await PaymentService.processWebhook(event);
 
       // Payment gateways expect a fast 200 OK signal so they stop retrying
       res.status(200).json({
@@ -51,6 +59,14 @@ export class PaymentController {
         result,
       });
     } catch (error) {
+      if (error instanceof Stripe.errors.StripeSignatureVerificationError) {
+        res.status(400).json({
+          success: false,
+          message: error.message,
+        });
+        return;
+      }
+
       // Returning a 500 prompts the external gateway to retry sending the webhook later
       console.error("[Webhook Processing Error]:", error);
       res.status(500).json({
