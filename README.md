@@ -2,7 +2,7 @@
 
 > A multi-vendor marketplace and order management system connecting customers, vendors, and delivery partners — built in TypeScript with a focus on checkout correctness, async task isolation, and clean domain boundaries.
 
-**Live API →** [marketflow-backend.vercel.app](https://marketflow-backend.vercel.app)
+**Live Platform →** [Marketflow - your one stop shop](https://marketflow-your-one-stop-shop.vercel.app/)
 
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)
 ![Express](https://img.shields.io/badge/Express.js-black?style=flat-square&logo=express)
@@ -34,9 +34,9 @@ MarketFlow is a backend for a multi-vendor marketplace where customers browse an
               ┌─────────────────────┼──────────────────────┐
               │                     │                      │
        ┌──────▼──────┐    ┌─────────▼────────┐    ┌────────▼───────┐
-       │  PostgreSQL  │    │  Redis + BullMQ  │    │   Stripe API   │
-       │  via Prisma  │    │  (job queues)    │    │   Webhooks     │
-       │  (Neon DB)   │    └──────────────────┘    └────────────────┘
+       │  PostgreSQL │    │  Redis + BullMQ  │    │   Stripe API   │
+       │  via Prisma │    │  (job queues)    │    │   Webhooks     │
+       │  (Neon DB)  │    └──────────────────┘    └────────────────┘
        └─────────────┘
               │
    ┌──────────┴──────────┐
