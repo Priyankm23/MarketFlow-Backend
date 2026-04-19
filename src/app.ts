@@ -14,6 +14,7 @@ import { orderRoutes } from "./modules/orders/orders.routes.js";
 import { paymentRoutes } from "./modules/payments/payments.routes.js";
 import { deliveryRoutes } from "./modules/delivery/delivery.routes.js";
 import flashDealsRoutes from "./modules/flashDeals/flashDeals.routes.js";
+import { env } from "./config/env.js";
 
 const app = express();
 
@@ -81,6 +82,19 @@ app.use("/api/v1/payments", paymentRoutes);
 app.use("/api/v1/delivery", deliveryRoutes);
 app.use("/api/v1/flash-deals", flashDealsRoutes);
 
+const PORT = env.PORT || 5001;
+
+app.get("/which-server", (req, res) => {
+  res.json({
+    message: "Request handled!",
+    port: PORT,
+    server: `Server on port ${PORT}`,
+  });
+});
+
+app.get("/", (_req, res) => {
+  res.status(200).json({ status: "ok", message: "Welcome to Marketflow" });
+});
 // Health Check endpoint
 app.get("/health", (_req, res) => {
   res.status(200).json({ status: "ok", uptime: process.uptime() });

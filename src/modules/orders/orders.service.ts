@@ -1,10 +1,8 @@
 import { prisma } from "../../db/prisma.js";
-import { redis } from "../../config/redis.js";
 import { ApiError } from "../../core/errors/ApiError.js";
 import { OrderStatus, Prisma } from "../../../generated/prisma/index.js";
 import { OrderStateMachine } from "./orderStateMachine.js";
 import { CartService } from "../cart/cart.service.js";
-import { DeliveryService } from "../delivery/delivery.service.js";
 import { OrderPricingService } from "./pricing.service.js";
 
 interface CheckoutShippingAddress {

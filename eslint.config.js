@@ -7,17 +7,30 @@ import prettierPlugin from "eslint-plugin-prettier";
 import prettierConfig from "eslint-config-prettier";
 
 export default [
+  // Ignore generated/build artifacts and external folders early.
+  {
+    ignores: [
+      "node_modules/**",
+      "dist/**",
+      "build/**",
+      "generated/**",
+      "prisma/generated/**",
+      "coverage/**",
+      "src/modules/mock/**",
+    ],
+  },
+
   // Base JS recommended rules
   js.configs.recommended,
 
-  // Apply to all TS files
+  // Apply to app TypeScript sources only
   {
-    files: ["**/*.ts"],
+    files: ["src/**/*.ts", "api/**/*.ts"],
 
     languageOptions: {
       parser: tsParser,
       parserOptions: {
-        project: "./tsconfig.json",
+        project: "./tsconfig.eslint.json",
         sourceType: "module",
         ecmaVersion: "latest",
       },
@@ -38,11 +51,13 @@ export default [
       "@typescript-eslint/no-explicit-any": "warn",
 
       // Error on variables declared but never used
+      "no-unused-vars": "off",
       "@typescript-eslint/no-unused-vars": [
         "error",
         {
           argsIgnorePattern: "^_",   // allow _unusedParam convention
           varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
         },
       ],
 
@@ -66,21 +81,13 @@ export default [
       // No duplicate keys in objects
       "no-dupe-keys": "error",
 
+      // Base JS rules that produce false positives in TypeScript files
+      "no-undef": "off",
+      "no-redeclare": "off",
+
       // ── Prettier formatting ───────────────────────────
       "prettier/prettier": "error",
     },
-  },
-
-  // Ignore built output and node_modules
-  {
-    ignores: [
-      "node_modules/**",
-      "dist/**",
-      "build/**",
-      "prisma/generated/**",
-      "*.js",         // ignore root .js config files themselves
-      "eslint.config.js",
-    ],
   },
 
   // Disable ESLint rules that conflict with Prettier

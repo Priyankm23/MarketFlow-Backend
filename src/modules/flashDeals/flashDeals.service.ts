@@ -490,7 +490,7 @@ export class FlashDealsService {
   static async rejectOffer(
     adminUserId: string,
     offerId: string,
-    reason?: string,
+    _reason?: string,
   ) {
     const offer = await prisma.offer.findUnique({ where: { id: offerId } });
     if (!offer) throw new Error("Offer not found");

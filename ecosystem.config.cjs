@@ -2,8 +2,8 @@
 module.exports = {
   apps: [
     {
-      // ── Web Server ──────────────────────────────────────
-      name: 'web-server',
+      // ── Web Server (port 5001) ───────────────────────────
+      name: 'web-server-5001',
       script: 'dist/server.js',
       instances: 1,
       autorestart: true,
@@ -12,8 +12,37 @@ module.exports = {
       node_args: '--dns-result-order=ipv4first',
       env : {
         NODE_ENV: 'production',
+        PORT: 5001,
       },
     },
+    // {
+    //   // ── Web Server (port 5002) ───────────────────────────
+    //   name: 'web-server-5002',
+    //   script: 'dist/server.js',
+    //   instances: 1,
+    //   autorestart: true,
+    //   watch: false,
+    //   max_memory_restart: '500M',
+    //   node_args: '--dns-result-order=ipv4first',
+    //   env : {
+    //     NODE_ENV: 'production',
+    //     PORT: 5002,
+    //   },
+    // },
+    // {
+    //   // ── Web Server (port 5003) ───────────────────────────
+    //   name: 'web-server-5003',
+    //   script: 'dist/server.js',
+    //   instances: 1,
+    //   autorestart: true,
+    //   watch: false,
+    //   max_memory_restart: '500M',
+    //   node_args: '--dns-result-order=ipv4first',
+    //   env : {
+    //     NODE_ENV: 'production',
+    //     PORT: 5003,
+    //   },
+    // },
     {
       // ── Email Worker ────────────────────────────────────
       name: 'email-worker',

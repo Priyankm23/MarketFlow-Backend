@@ -21,7 +21,7 @@ export const requireAuth = (
     const payload = verifyAccessToken(token);
     req.user = payload;
     next();
-  } catch (error) {
+  } catch (_error) {
     return next(new ApiError(401, "Unauthorized: Invalid or expired token"));
   }
 };

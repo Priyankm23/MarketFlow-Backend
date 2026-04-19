@@ -70,7 +70,7 @@ export class AuthService {
     let payload;
     try {
       payload = verifyRefreshToken(token);
-    } catch (e) {
+    } catch (_e) {
       throw new ApiError(401, "Invalid refresh token");
     }
 
@@ -119,7 +119,7 @@ export class AuthService {
         where: { id: payload.sessionId },
         data: { isRevoked: true },
       });
-    } catch (e) {
+    } catch (_e) {
       // If the token is invalid, they are effectively logged out anyway
     }
   }
