@@ -1,4 +1,7 @@
 import FlashDealsService from "../modules/flashDeals/flashDeals.service.js";
+import { logger, serializeError } from "../core/utils/logger.js";
+
+const refresherLogger = logger.child({ component: "flash-deals-refresher" });
 
 /**
  * Starts a background loop that refreshes the flash-deals cache.
@@ -7,7 +10,7 @@ import FlashDealsService from "../modules/flashDeals/flashDeals.service.js";
  * - Schedules next run at the nearest deal end (TTL) or a fallback interval.
  */
 export async function startFlashDealsCacheRefresher() {
-  console.log("[FlashDealsRefresher] Starting refresher...");
+  refresherLogger.info("Starting flash deals refresher");
 
   const runOnce = async () => {
     try {
@@ -17,7 +20,7 @@ export async function startFlashDealsCacheRefresher() {
 
       // Decide next run time: run slightly before nearest end to ensure update
       const now = Date.now();
-      let nextMs = 60 * 1000; // default 30s
+      let nextMs = 12 * 60 * 1000; // default 30s
 
       if (nearestEnd) {
         // Schedule ~2 seconds before expiry, but at least 5s from now
@@ -27,13 +30,21 @@ export async function startFlashDealsCacheRefresher() {
         nextMs = Math.max(5000, Math.min(ttlSec * 1000 - 2000, 60 * 60 * 1000));
       }
 
-      console.log(
-        `[FlashDealsRefresher] Warmed cache. Next run in ${Math.round(nextMs / 1000)}s`,
+      refresherLogger.info(
+        {
+          nextRunInSec: Math.round(nextMs / 1000),
+        },
+        "Warmed flash-deals cache",
       );
 
       setTimeout(runOnce, nextMs);
     } catch (err) {
-      console.error("[FlashDealsRefresher] Error during refresh:", err);
+      refresherLogger.error(
+        {
+          err: serializeError(err),
+        },
+        "Flash-deals cache refresh failed",
+      );
       // Retry after short delay
       setTimeout(runOnce, 15 * 1000);
     }

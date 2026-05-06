@@ -1,6 +1,9 @@
 import { Request, Response, NextFunction } from "express";
 import Stripe from "stripe";
 import { PaymentService } from "./payments.service.js";
+import { logger, serializeError } from "../../core/utils/logger.js";
+
+const paymentsControllerLogger = logger.child({ component: "payments-controller" });
 
 export class PaymentController {
   // POST /api/payments/:orderId/intent
@@ -68,7 +71,10 @@ export class PaymentController {
       }
 
       // Returning a 500 prompts the external gateway to retry sending the webhook later
-      console.error("[Webhook Processing Error]:", error);
+      paymentsControllerLogger.error(
+        { err: serializeError(error) },
+        "Webhook processing failed",
+      );
       res.status(500).json({
         success: false,
         message: "Webhook processing failed",

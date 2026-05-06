@@ -9,6 +9,9 @@ import {
 import Stripe from "stripe";
 import { stripe } from "./stripe.service.js";
 import { env } from "../../config/env.js";
+import { logger } from "../../core/utils/logger.js";
+
+const paymentsLogger = logger.child({ component: "payments-service" });
 
 export class PaymentService {
   /**
@@ -138,8 +141,9 @@ export class PaymentService {
     });
 
     if (existingEvent?.processed) {
-      console.log(
-        `[Webhook] Event ${eventId} already processed. Safely ignoring.`,
+      paymentsLogger.info(
+        { eventId, type },
+        "Webhook event already processed; ignoring duplicate",
       );
       return { status: "ignored", reason: "duplicate" };
     }

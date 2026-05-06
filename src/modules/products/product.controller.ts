@@ -47,6 +47,17 @@ export class ProductController {
     res.status(200).json({ status: "success", ...products });
   }
 
+  static async searchProducts(req: Request, res: Response) {
+    const q = req.query.q as string | undefined;
+    const page = req.query.page ? parseInt(req.query.page as string, 10) : 1;
+    const limit = req.query.limit
+      ? parseInt(req.query.limit as string, 10)
+      : 10;
+
+    const products = await ProductService.searchProducts({ q, page, limit });
+    res.status(200).json({ status: "success", ...products });
+  }
+
   static async getProductsByVendorId(req: Request, res: Response) {
     const vendorId = Array.isArray(req.params.vendorId)
       ? req.params.vendorId[0]

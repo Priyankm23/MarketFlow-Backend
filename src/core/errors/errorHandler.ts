@@ -1,10 +1,11 @@
 import { Request, Response, NextFunction } from "express";
 import { ApiError } from "./ApiError.js";
 import { env } from "../../config/env.js";
+import { logger, serializeError } from "../utils/logger.js";
 
 export const errorHandler = (
   err: Error,
-  _req: Request,
+  req: Request,
   res: Response,
   _next: NextFunction,
 ): void => {
@@ -17,6 +18,17 @@ export const errorHandler = (
   }
 
   const { statusCode, message } = error as ApiError;
+
+  logger.error(
+    {
+      err: serializeError(err),
+      statusCode,
+      method: req.method,
+      path: req.originalUrl,
+      requestId: res.getHeader("x-request-id") || req.headers["x-request-id"],
+    },
+    "Request failed",
+  );
 
   res.status(statusCode).json({
     status: "error",

@@ -54,4 +54,9 @@ export const env = {
 
   STRIPE_SECRET_KEY: getEnvVariable("STRIPE_SECRET_KEY"),
   STRIPE_WEBHOOK_SECRET: getEnvVariable("STRIPE_WEBHOOK_SECRET"),
+
+  ELASTIC_NODE: getEnvVariable("elastic_node"),
+  ELASTIC_API_KEY: getEnvVariable("elastic_api_key"),
+  ELASTIC_PRODUCTS_INDEX:
+    process.env.ELASTIC_PRODUCTS_INDEX?.trim() || "products",
 };

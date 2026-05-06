@@ -2,8 +2,14 @@ import { prisma } from "../../db/prisma.js";
 import { redis } from "../../config/redis.js";
 import { ApiError } from "../../core/errors/ApiError.js";
 import { Prisma } from "../../../generated/prisma/index.js";
+import { logger, serializeError } from "../../core/utils/logger.js";
+import {
+  searchProductsInIndex,
+  syncProductToSearchIndex,
+} from "./productSearch.js";
 
 const PRODUCTS_CACHE_KEY = "products:catalog:v2";
+const productLogger = logger.child({ component: "product-service" });
 
 export interface CreateProductData {
   vendorId: string;
@@ -99,7 +105,10 @@ export class ProductService {
         await redis.del(...keys);
       }
     } catch (error) {
-      console.error("⚠️ Redis Cache Invalidation Failed:", error);
+      productLogger.warn(
+        { err: serializeError(error) },
+        "Redis cache invalidation failed",
+      );
       // We don't want a cache failure to stop the user from getting a successful response
     }
   }
@@ -129,6 +138,8 @@ export class ProductService {
         imagePublicId: data.imagePublicId,
       },
     });
+
+    await syncProductToSearchIndex(product.id);
 
     await this.invalidateCache();
 
@@ -195,7 +206,7 @@ export class ProductService {
     } catch (error) {
       if (!this.isMissingColumnError(error)) throw error;
 
-      console.error(
+      productLogger.warn(
         "Product query fallback activated due to schema drift (P2022). Run prisma migrate deploy on production.",
       );
 
@@ -233,6 +244,28 @@ export class ProductService {
     await redis.setex(cacheKey, 600, JSON.stringify(result));
 
     return result;
+  }
+
+  static async searchProducts(options: {
+    q?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    const q = options.q?.trim();
+
+    if (!q) {
+      throw new ApiError(400, "Search query is required");
+    }
+
+    const page = options.page && options.page > 0 ? options.page : 1;
+    const limit =
+      options.limit && options.limit > 0 ? Math.min(options.limit, 50) : 10;
+
+    return searchProductsInIndex({
+      query: q,
+      page,
+      limit,
+    });
   }
 
   static async getProductById(productId: string) {

@@ -2,6 +2,7 @@ import dotenv from "dotenv";
 dotenv.config();
 
 import { Pool } from "pg";
+import { dbLogger, serializeError } from "../core/utils/logger.js";
 
 const connectionString = process.env.DATABASE_URL;
 
@@ -20,10 +21,15 @@ export const pool = new Pool({
 });
 
 pool.on("connect", () => {
-  console.log("✅ PostgreSQL pool connected");
+  dbLogger.info("PostgreSQL pool connected");
 });
 
 pool.on("error", (err) => {
-  console.error("❌ Unexpected PG Pool Error:", err);
+  dbLogger.error(
+    {
+      err: serializeError(err),
+    },
+    "Unexpected PG pool error",
+  );
   process.exit(1);
 });

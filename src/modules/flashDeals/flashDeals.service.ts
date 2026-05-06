@@ -2,8 +2,10 @@ import { prisma } from "../../db/prisma.js";
 import { redis } from "../../config/redis.js";
 import { env } from "../../config/env.js";
 import { Prisma } from "../../../generated/prisma/index.js";
+import { logger, serializeError } from "../../core/utils/logger.js";
 
 const REDIS_KEY = "flashDeals:active";
+const flashDealsLogger = logger.child({ component: "flash-deals-service" });
 
 export class FlashDealsService {
   private static isMissingColumnError(error: unknown): boolean {
@@ -21,7 +23,10 @@ export class FlashDealsService {
         return JSON.parse(cached);
       }
     } catch (err) {
-      console.error("Redis read failed for flash deals:", err);
+      flashDealsLogger.warn(
+        { err: serializeError(err) },
+        "Redis read failed for flash deals",
+      );
     }
 
     const now = new Date();
@@ -57,7 +62,7 @@ export class FlashDealsService {
     } catch (error) {
       if (!this.isMissingColumnError(error)) throw error;
 
-      console.error(
+      flashDealsLogger.warn(
         "Flash deals disabled due to schema drift (P2022). Run prisma migrate deploy on production.",
       );
       return [];
@@ -130,7 +135,10 @@ export class FlashDealsService {
         await redis.set(REDIS_KEY, JSON.stringify(result), "EX", 30);
       }
     } catch (err) {
-      console.error("Redis write failed for flash deals:", err);
+      flashDealsLogger.warn(
+        { err: serializeError(err) },
+        "Redis write failed for flash deals",
+      );
     }
 
     return result;
@@ -140,7 +148,10 @@ export class FlashDealsService {
     try {
       await redis.del(REDIS_KEY);
     } catch (err) {
-      console.error("Redis delete failed for flash deals:", err);
+      flashDealsLogger.warn(
+        { err: serializeError(err) },
+        "Redis delete failed for flash deals",
+      );
     }
   }
 
@@ -235,17 +246,23 @@ export class FlashDealsService {
       try {
         await this.refreshCache();
       } catch (err) {
-        console.error("Failed to warm cache after auto-approve:", err);
+        flashDealsLogger.error(
+          { err: serializeError(err) },
+          "Failed to warm cache after auto-approve",
+        );
       }
     } else {
       // log reason for manual review (helps admins)
-      console.log("FlashDeal queued for approval", {
-        vendorId: vendor.id,
-        avgRating,
-        ratingCount,
-        minRating,
-        minReviews,
-      });
+      flashDealsLogger.info(
+        {
+          vendorId: vendor.id,
+          avgRating,
+          ratingCount,
+          minRating,
+          minReviews,
+        },
+        "Flash deal queued for approval",
+      );
     }
 
     return created;
@@ -482,7 +499,10 @@ export class FlashDealsService {
     try {
       await this.refreshCache();
     } catch (err) {
-      console.error("Failed to warm flash deals cache after approve:", err);
+      flashDealsLogger.error(
+        { err: serializeError(err) },
+        "Failed to warm flash deals cache after approve",
+      );
     }
     return updated;
   }
@@ -510,7 +530,10 @@ export class FlashDealsService {
     try {
       await this.refreshCache();
     } catch (err) {
-      console.error("Failed to warm flash deals cache after reject:", err);
+      flashDealsLogger.error(
+        { err: serializeError(err) },
+        "Failed to warm flash deals cache after reject",
+      );
     }
     return updated;
   }
@@ -550,7 +573,7 @@ export class FlashDealsService {
     } catch (error) {
       if (!this.isMissingColumnError(error)) throw error;
 
-      console.error(
+      flashDealsLogger.warn(
         "Flash deals cache refresh skipped due to schema drift (P2022). Run prisma migrate deploy on production.",
       );
       return [];
@@ -623,7 +646,10 @@ export class FlashDealsService {
         return { nearestEnd: null, ttlSec: 30 };
       }
     } catch (err) {
-      console.error("Redis write failed for flash deals during refresh:", err);
+      flashDealsLogger.warn(
+        { err: serializeError(err) },
+        "Redis write failed for flash deals during refresh",
+      );
       return { nearestEnd: null, ttlSec: 30 };
     }
   }

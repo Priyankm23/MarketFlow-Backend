@@ -11,6 +11,7 @@
     "vercel-build": "npm run build",
     "start": "prisma migrate deploy && prisma generate && pm2-runtime start ecosystem.config.cjs",
     "worker": "tsx src/jobs/workers/emailWorker.ts",
+    "search:sync": "tsx src/scripts/syncProductsToElastic.ts",
     "lint": "eslint . --max-warnings=2000",
     "typecheck": "tsc --noEmit"
   },
@@ -50,6 +51,7 @@
     "typescript": "^5"
   },
   "dependencies": {
+    "@elastic/elasticsearch": "^9.3.4",
     "@neondatabase/serverless": "^1.0.2",
     "@prisma/adapter-neon": "^7.7.0",
     "@prisma/adapter-pg": "^7.7.0",

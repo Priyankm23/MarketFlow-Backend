@@ -3,6 +3,7 @@ import { redis } from "../../config/redis.js";
 import { ApiError } from "../../core/errors/ApiError.js";
 import { uploadToCloudinary } from "../../core/utils/cloudinary.js";
 import { Prisma } from "../../../generated/prisma/index.js";
+import { logger, serializeError } from "../../core/utils/logger.js";
 
 export interface RegisterVendorData {
   businessName: string;
@@ -41,6 +42,7 @@ interface CreateProductOfferInput {
 type ProductImageInput = Express.Multer.File | Express.Multer.File[];
 
 const PRODUCTS_CACHE_KEY = "products:catalog:v2";
+const vendorLogger = logger.child({ component: "vendor-service" });
 
 export class VendorService {
   private static async invalidateProductCache() {
@@ -50,7 +52,10 @@ export class VendorService {
         await redis.del(...keys);
       }
     } catch (error) {
-      console.error("⚠️ Redis Cache Invalidation Failed:", error);
+      vendorLogger.warn(
+        { err: serializeError(error) },
+        "Redis cache invalidation failed",
+      );
     }
   }
 

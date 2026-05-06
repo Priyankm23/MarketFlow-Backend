@@ -2,6 +2,9 @@ import { Request, Response } from "express";
 import { VendorService } from "./vendor.service.js";
 import { ApiError } from "../../core/errors/ApiError.js";
 import { uploadToCloudinary } from "../../core/utils/cloudinary.js";
+import { logger } from "../../core/utils/logger.js";
+
+const vendorControllerLogger = logger.child({ component: "vendor-controller" });
 
 export class VendorController {
   static async register(req: Request, res: Response) {
@@ -16,7 +19,7 @@ export class VendorController {
         "Both 'govId' and 'businessDoc' files are required.",
       );
     }
-    console.log(req.files);
+    vendorControllerLogger.debug({ files: req.files }, "Vendor registration files received");
     const govIdFile = req.files["govId"][0];
     const businessDocFile = req.files["businessDoc"][0];
 

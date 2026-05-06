@@ -1,5 +1,8 @@
 import type { Prisma } from "../../generated/prisma/index.js";
 import { prisma } from "../db/prisma.js";
+import { logger, serializeError } from "../core/utils/logger.js";
+
+const inventoryCleanupLogger = logger.child({ component: "inventory-cleanup" });
 
 export const runInventoryCleanup = async () => {
   try {
@@ -14,8 +17,9 @@ export const runInventoryCleanup = async () => {
       return;
     }
 
-    console.log(
-      `[Inventory Cleanup] Found ${expiredReservations.length} expired reservations. Running rollback...`,
+    inventoryCleanupLogger.info(
+      { expiredReservationsCount: expiredReservations.length },
+      "Found expired inventory reservations; running rollback",
     );
 
     // We process each order cancellation inside a transaction.
@@ -102,18 +106,25 @@ export const runInventoryCleanup = async () => {
           }
         });
 
-        console.log(
-          `[Inventory Cleanup] Successfully rolled back & cancelled order: ${orderId}`,
+        inventoryCleanupLogger.info(
+          { orderId },
+          "Rolled back inventory and cancelled order",
         );
       } catch (err) {
-        console.error(
-          `[Inventory Cleanup] Failed to process order: ${orderId}`,
-          err,
+        inventoryCleanupLogger.error(
+          {
+            orderId,
+            err: serializeError(err),
+          },
+          "Failed to process order during inventory cleanup",
         );
       }
     }
   } catch (error) {
-    console.error("[Inventory Cleanup] Global error:", error);
+    inventoryCleanupLogger.error(
+      { err: serializeError(error) },
+      "Inventory cleanup failed",
+    );
   }
 };
 

@@ -5,13 +5,19 @@ import {
   sendWelcomeEmail,
 } from "../../core/utils/emailService.js";
 import dns from "node:dns";
+import { logger, serializeError } from "../../core/utils/logger.js";
 
 dns.setDefaultResultOrder("ipv4first");
+
+const workerLogger = logger.child({ component: "email-worker" });
 
 const worker = new Worker(
   "emailQueue",
   async (job) => {
-    console.log(`⚙️  Processing job [${job.id}]: ${job.name}`);
+    workerLogger.info(
+      { jobId: job.id, jobName: job.name },
+      "Processing email job",
+    );
 
     if (job.name === "welcome-email") {
       const { name, email } = job.data;
@@ -45,17 +51,27 @@ const worker = new Worker(
 
 // ── Event Listeners ──────────────────────────────────────
 worker.on("completed", (job, result) => {
-  console.log(`✅ Job ${job.id} done →`, result);
+  workerLogger.info({ jobId: job.id, result }, "Email job completed");
 });
 
 worker.on("failed", (job, err) => {
   const jobId = job?.id ?? "unknown";
   const attempts = job?.attemptsMade ?? 0;
-  console.error(`❌ Job ${jobId} failed (attempt ${attempts}):`, err.message);
+  workerLogger.error(
+    {
+      jobId,
+      attempts,
+      err: serializeError(err),
+    },
+    "Email job failed",
+  );
 });
 
 worker.on("progress", (job, progress) => {
-  console.log(`🔄 Job ${job.id} is ${progress}% done`);
+  workerLogger.info(
+    { jobId: job.id, progress },
+    "Email job progress updated",
+  );
 });
 
 // Graceful shutdown — don't kill mid-job during deploys
@@ -63,4 +79,4 @@ process.on("SIGTERM", async () => {
   await worker.close();
 });
 
-console.log("👷 Email worker is running and watching the queue...");
+workerLogger.info("Email worker is running and watching the queue");

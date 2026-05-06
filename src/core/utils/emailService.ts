@@ -1,5 +1,8 @@
 import { Resend } from "resend";
 import { env } from "../../config/env.js";
+import { logger } from "./logger.js";
+
+const emailLogger = logger.child({ component: "email-service" });
 
 interface WelcomeEmailPayload {
   name: string;
@@ -84,7 +87,7 @@ export async function sendWelcomeEmail({ name, email }: WelcomeEmailPayload) {
     `,
   });
 
-  console.log(`Welcome email sent to ${email}`);
+  emailLogger.info({ recipient: email, template: "welcome" }, "Email sent");
 }
 
 export async function sendOrderPlacedInvoiceEmail(
@@ -148,5 +151,12 @@ export async function sendOrderPlacedInvoiceEmail(
     `,
   });
 
-  console.log(`Order invoice email sent to ${payload.customerEmail}`);
+  emailLogger.info(
+    {
+      recipient: payload.customerEmail,
+      template: "order-invoice",
+      orderId: payload.orderId,
+    },
+    "Email sent",
+  );
 }

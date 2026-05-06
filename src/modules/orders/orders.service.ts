@@ -24,6 +24,7 @@ interface CheckoutOfferSelection {
   couponCode?: string;
 }
 
+
 export class OrderService {
   /**
    * Convert Redis Cart into one or more Postgres Orders (grouped by Vendor).
@@ -322,7 +323,7 @@ export class OrderService {
     // if (newStatus === OrderStatus.PACKED) {
     //   // Automatically attempt to assign a delivery partner
     //   // We don't block the response, we catch & log if it fails.
-    //   DeliveryService.assignOrderToPartner(orderId).catch(console.error);
+    //   DeliveryService.assignOrderToPartner(orderId).catch((err) => logger.error(err));
     // }
 
     return updatedOrder;

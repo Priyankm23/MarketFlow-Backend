@@ -1,11 +1,14 @@
 import { prisma } from "../db/prisma.js";
+import { logger, serializeError } from "../core/utils/logger.js";
+
+const sessionCleanupLogger = logger.child({ component: "session-cleanup" });
 
 /**
  * Script to clean up revoked and expired sessions from the database.
  * This runs as a standalone job to prevent the Session table from bloating over time.
  */
 export async function cleanupSessions() {
-  console.log("🧹 Starting session cleanup...");
+  sessionCleanupLogger.info("Starting session cleanup");
   try {
     const result = await prisma.session.deleteMany({
       where: {
@@ -16,10 +19,14 @@ export async function cleanupSessions() {
       },
     });
 
-    console.log(
-      `✅ Successfully deleted ${result.count} revoked or expired sessions.`,
+    sessionCleanupLogger.info(
+      { deletedCount: result.count },
+      "Session cleanup completed",
     );
   } catch (error) {
-    console.error("❌ Failed to clean up sessions:", error);
+    sessionCleanupLogger.error(
+      { err: serializeError(error) },
+      "Session cleanup failed",
+    );
   }
 }

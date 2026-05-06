@@ -1,5 +1,6 @@
 import { Redis } from "ioredis";
 import { env } from "./env.js";
+import { cacheLogger, serializeError } from "../core/utils/logger.js";
 
 // We will add REDIS_URL to env.ts as well
 const redisUrl = env.REDIS_URL || "redis://localhost:6379";
@@ -23,17 +24,29 @@ export const bullRedis = new Redis(redisUrl, {
 });
 
 redis.on("error", (err) => {
-  console.error("Redis connection error:", err);
+  cacheLogger.error(
+    {
+      err: serializeError(err),
+      client: "redis",
+    },
+    "Redis connection error",
+  );
 });
 
 redis.on("connect", () => {
-  console.log("Successfully connected to Redis");
+  cacheLogger.info({ client: "redis" }, "Redis connected");
 });
 
 bullRedis.on("error", (err) => {
-  console.error("Bull Redis connection error:", err);
+  cacheLogger.error(
+    {
+      err: serializeError(err),
+      client: "bullRedis",
+    },
+    "Bull Redis connection error",
+  );
 });
 
 bullRedis.on("connect", () => {
-  console.log("Bull Redis connected successfully");
+  cacheLogger.info({ client: "bullRedis" }, "Bull Redis connected");
 });

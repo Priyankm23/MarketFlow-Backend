@@ -4,6 +4,7 @@ import { env } from "./config/env.js";
 import { cleanupSessions } from "./jobs/cleanupSessions.js";
 import { runInventoryCleanup } from "./jobs/inventoryCleanup.js";
 import { startFlashDealsCacheRefresher } from "./jobs/refreshFlashDealsCache.js";
+import { logger, serializeError } from "./core/utils/logger.js";
 
 function getDatabaseFingerprint(databaseUrl: string) {
   try {
@@ -21,31 +22,47 @@ async function startServer() {
   try {
     const dbFingerprint = getDatabaseFingerprint(env.DATABASE_URL);
     if (dbFingerprint) {
-      console.log(
-        `[DB] Runtime target -> host=${dbFingerprint.host} db=${dbFingerprint.name}`,
+      logger.info(
+        {
+          host: dbFingerprint.host,
+          database: dbFingerprint.name,
+        },
+        "Runtime database target",
       );
 
       if (env.EXPECTED_DB_HOST && env.EXPECTED_DB_HOST !== dbFingerprint.host) {
-        console.warn(
-          `[DB] Expected host ${env.EXPECTED_DB_HOST}, but connected to ${dbFingerprint.host}`,
+        logger.warn(
+          {
+            expected: env.EXPECTED_DB_HOST,
+            actual: dbFingerprint.host,
+          },
+          "Database host mismatch",
         );
       }
 
       if (env.EXPECTED_DB_NAME && env.EXPECTED_DB_NAME !== dbFingerprint.name) {
-        console.warn(
-          `[DB] Expected database ${env.EXPECTED_DB_NAME}, but connected to ${dbFingerprint.name}`,
+        logger.warn(
+          {
+            expected: env.EXPECTED_DB_NAME,
+            actual: dbFingerprint.name,
+          },
+          "Database name mismatch",
         );
       }
     } else {
-      console.warn("[DB] Could not parse DATABASE_URL for fingerprint logging");
+      logger.warn("Could not parse DATABASE_URL for fingerprint logging");
     }
 
     await prisma.$connect();
-    console.log("Database connected successfully.");
+    logger.info("Database connected successfully");
 
     app.listen(env.PORT, () => {
-      console.log(
-        `Server is running on port ${env.PORT} in ${env.NODE_ENV} mode`,
+      logger.info(
+        {
+          port: env.PORT,
+          nodeEnv: env.NODE_ENV,
+        },
+        "Server started",
       );
     });
 
@@ -61,10 +78,20 @@ async function startServer() {
 
     // Start flash-deals cache refresher in background
     startFlashDealsCacheRefresher().catch((err) => {
-      console.error("Failed to start flash deals refresher:", err);
+      logger.error(
+        {
+          err: serializeError(err),
+        },
+        "Failed to start flash deals refresher",
+      );
     });
   } catch (error) {
-    console.error("Failed to start server:", error);
+    logger.fatal(
+      {
+        err: serializeError(error),
+      },
+      "Failed to start server",
+    );
     process.exit(1);
   }
 }

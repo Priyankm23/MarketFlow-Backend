@@ -15,6 +15,7 @@ import { paymentRoutes } from "./modules/payments/payments.routes.js";
 import { deliveryRoutes } from "./modules/delivery/delivery.routes.js";
 import flashDealsRoutes from "./modules/flashDeals/flashDeals.routes.js";
 import { env } from "./config/env.js";
+import { getRequestId, requestLogger } from "./core/utils/logger.js";
 
 const app = express();
 
@@ -22,7 +23,28 @@ const app = express();
 const _helmet: any = helmet;
 const helmetMiddleware = _helmet.default ?? _helmet;
 app.use(helmetMiddleware());
-app.use(morgan("dev")); // Request logging
+
+app.use((req, res, next) => {
+  const requestId = getRequestId(
+    req.headers["x-request-id"] as string | undefined,
+  );
+
+  req.headers["x-request-id"] = requestId;
+  res.setHeader("x-request-id", requestId);
+
+  next();
+});
+
+app.use(
+  morgan("dev", {
+    stream: {
+      write: (message) => {
+        requestLogger.info(message.trim());
+      },
+    },
+  }),
+);
+
 // Configure CORS to explicitly allow the frontend and handle preflight
 const allowedOrigins = new Set<string>();
 
@@ -36,10 +58,11 @@ allowedOrigins.add("https://marketflow-your-one-stop-shop.vercel.app");
 // local dev
 allowedOrigins.add("http://localhost:3000");
 allowedOrigins.add("http://127.0.0.1:3000");
+allowedOrigins.add("http://127.0.0.1:5500");
 
 const corsOptions: cors.CorsOptions = {
   origin: (origin, callback) => {
-    console.log("Incoming origin:", origin);
+    requestLogger.debug({ origin }, "Incoming CORS origin");
 
     if (!origin) return callback(null, true);
 
@@ -47,7 +70,7 @@ const corsOptions: cors.CorsOptions = {
       return callback(null, origin); // ✅ IMPORTANT
     }
 
-    console.log("❌ Blocked by CORS:", origin);
+    requestLogger.warn({ origin }, "Blocked by CORS policy");
     return callback(new Error("CORS origin denied"));
   },
   credentials: true,
