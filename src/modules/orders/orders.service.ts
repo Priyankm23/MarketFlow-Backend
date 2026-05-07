@@ -24,7 +24,6 @@ interface CheckoutOfferSelection {
   couponCode?: string;
 }
 
-
 export class OrderService {
   /**
    * Convert Redis Cart into one or more Postgres Orders (grouped by Vendor).

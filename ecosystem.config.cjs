@@ -3,7 +3,7 @@ module.exports = {
   apps: [
     {
       // ── Web Server (port 5001) ───────────────────────────
-      name: 'web-server-5001',
+      name: 'web-server-5000',
       script: 'dist/server.js',
       instances: 1,
       autorestart: true,
@@ -12,7 +12,7 @@ module.exports = {
       node_args: '--dns-result-order=ipv4first',
       env : {
         NODE_ENV: 'production',
-        PORT: 5001,
+        PORT: 5000,
       },
     },
     // {

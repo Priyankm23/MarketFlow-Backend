@@ -3,7 +3,9 @@ import Stripe from "stripe";
 import { PaymentService } from "./payments.service.js";
 import { logger, serializeError } from "../../core/utils/logger.js";
 
-const paymentsControllerLogger = logger.child({ component: "payments-controller" });
+const paymentsControllerLogger = logger.child({
+  component: "payments-controller",
+});
 
 export class PaymentController {
   // POST /api/payments/:orderId/intent

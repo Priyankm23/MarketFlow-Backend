@@ -19,7 +19,10 @@ export class VendorController {
         "Both 'govId' and 'businessDoc' files are required.",
       );
     }
-    vendorControllerLogger.debug({ files: req.files }, "Vendor registration files received");
+    vendorControllerLogger.debug(
+      { files: req.files },
+      "Vendor registration files received",
+    );
     const govIdFile = req.files["govId"][0];
     const businessDocFile = req.files["businessDoc"][0];
 

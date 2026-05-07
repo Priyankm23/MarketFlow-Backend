@@ -68,10 +68,7 @@ worker.on("failed", (job, err) => {
 });
 
 worker.on("progress", (job, progress) => {
-  workerLogger.info(
-    { jobId: job.id, progress },
-    "Email job progress updated",
-  );
+  workerLogger.info({ jobId: job.id, progress }, "Email job progress updated");
 });
 
 // Graceful shutdown — don't kill mid-job during deploys
