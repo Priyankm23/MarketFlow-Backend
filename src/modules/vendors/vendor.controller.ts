@@ -208,4 +208,20 @@ export class VendorController {
 
     res.status(200).json({ status: "success", data: offers });
   }
+
+  static async getDashboard(req: Request, res: Response) {
+    const recentOrdersLimit = req.query.recentOrdersLimit
+      ? Number(req.query.recentOrdersLimit)
+      : undefined;
+    const lowStockThreshold = req.query.lowStockThreshold
+      ? Number(req.query.lowStockThreshold)
+      : undefined;
+
+    const dashboard = await VendorService.getDashboard(req.user!.userId, {
+      recentOrdersLimit,
+      lowStockThreshold,
+    });
+
+    res.status(200).json({ status: "success", data: dashboard });
+  }
 }

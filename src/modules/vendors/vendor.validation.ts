@@ -102,3 +102,19 @@ export const getVendorProductOffersSchema = z.object({
     productId: z.string().uuid("Invalid product ID"),
   }),
 });
+
+export const getVendorDashboardSchema = z.object({
+  query: z.object({
+    recentOrdersLimit: z.coerce
+      .number()
+      .int("recentOrdersLimit must be an integer")
+      .min(1, "recentOrdersLimit must be at least 1")
+      .max(20, "recentOrdersLimit cannot exceed 20")
+      .optional(),
+    lowStockThreshold: z.coerce
+      .number()
+      .int("lowStockThreshold must be an integer")
+      .min(1, "lowStockThreshold must be at least 1")
+      .optional(),
+  }),
+});

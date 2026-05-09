@@ -11,6 +11,7 @@ import {
   registerVendorBaseSchema,
   updateVendorProductDetailsSchema,
   updateVendorProductStockSchema,
+  getVendorDashboardSchema,
 } from "./vendor.validation.js";
 
 const router = Router();
@@ -65,6 +66,13 @@ router.get(
   requireRole(["VENDOR"]),
   validate(getVendorProductOffersSchema),
   VendorController.getProductOffers,
+);
+
+router.get(
+  "/dashboard",
+  requireRole(["VENDOR"]),
+  validate(getVendorDashboardSchema),
+  VendorController.getDashboard,
 );
 
 router.get("/profile", VendorController.getProfile);

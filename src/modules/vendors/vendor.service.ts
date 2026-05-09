@@ -2,7 +2,7 @@ import { prisma } from "../../db/prisma.js";
 import { redis } from "../../config/redis.js";
 import { ApiError } from "../../core/errors/ApiError.js";
 import { uploadToCloudinary } from "../../core/utils/cloudinary.js";
-import { Prisma } from "../../../generated/prisma/index.js";
+import { Prisma, OrderStatus } from "../../../generated/prisma/index.js";
 import { logger, serializeError } from "../../core/utils/logger.js";
 
 export interface RegisterVendorData {
@@ -37,6 +37,11 @@ interface CreateProductOfferInput {
   couponCode?: string;
   termsAndConditions?: string;
   isActive?: boolean;
+}
+
+interface VendorDashboardOptions {
+  recentOrdersLimit?: number;
+  lowStockThreshold?: number;
 }
 
 type ProductImageInput = Express.Multer.File | Express.Multer.File[];
@@ -482,6 +487,190 @@ export class VendorService {
       productId: product.id,
       productName: product.name,
       offers,
+    };
+  }
+
+  static async getDashboard(
+    vendorUserId: string,
+    options: VendorDashboardOptions = {},
+  ) {
+    const vendor = await prisma.vendor.findUnique({
+      where: { userId: vendorUserId },
+      select: { id: true },
+    });
+
+    if (!vendor) {
+      throw new ApiError(404, "Vendor profile not found");
+    }
+
+    const lowStockThreshold = options.lowStockThreshold ?? 5;
+    const recentOrdersLimit = Math.min(options.recentOrdersLimit ?? 5, 20);
+
+    const now = new Date();
+    const startOfToday = new Date(now);
+    startOfToday.setHours(0, 0, 0, 0);
+
+    const startOfYesterday = new Date(startOfToday);
+    startOfYesterday.setDate(startOfYesterday.getDate() - 1);
+
+    const startOfTomorrow = new Date(startOfToday);
+    startOfTomorrow.setDate(startOfTomorrow.getDate() + 1);
+
+    const startOfThisWeek = new Date(startOfToday);
+    const dayOfWeek = startOfThisWeek.getDay();
+    const diffToMonday = (dayOfWeek + 6) % 7;
+    startOfThisWeek.setDate(startOfThisWeek.getDate() - diffToMonday);
+
+    const startOfLastWeek = new Date(startOfThisWeek);
+    startOfLastWeek.setDate(startOfLastWeek.getDate() - 7);
+
+    const activeStatuses = [OrderStatus.PAID, OrderStatus.CONFIRMED];
+
+    const [
+      totalProducts,
+      lowStockItems,
+      activeOrders,
+      activeOrdersToday,
+      activeOrdersYesterday,
+      recentOrders,
+      stockAlerts,
+      totalRevenueAllTime,
+      revenueThisWeek,
+      revenueLastWeek,
+    ] = await Promise.all([
+      prisma.product.count({
+        where: { vendorId: vendor.id },
+      }),
+      prisma.product.count({
+        where: {
+          vendorId: vendor.id,
+          stock: { lt: lowStockThreshold },
+        },
+      }),
+      prisma.order.count({
+        where: {
+          vendorId: vendor.id,
+          status: { in: activeStatuses },
+        },
+      }),
+      prisma.order.count({
+        where: {
+          vendorId: vendor.id,
+          status: { in: activeStatuses },
+          createdAt: { gte: startOfToday, lt: startOfTomorrow },
+        },
+      }),
+      prisma.order.count({
+        where: {
+          vendorId: vendor.id,
+          status: { in: activeStatuses },
+          createdAt: { gte: startOfYesterday, lt: startOfToday },
+        },
+      }),
+      prisma.order.findMany({
+        where: { vendorId: vendor.id },
+        orderBy: { createdAt: "desc" },
+        take: recentOrdersLimit,
+        select: {
+          id: true,
+          status: true,
+          totalAmount: true,
+          createdAt: true,
+          user: { select: { name: true } },
+          items: { select: { id: true } },
+        },
+      }),
+      prisma.product.findMany({
+        where: {
+          vendorId: vendor.id,
+          stock: { lte: lowStockThreshold },
+        },
+        orderBy: { stock: "asc" },
+        take: 5,
+        select: {
+          id: true,
+          name: true,
+          imageUrl: true,
+          stock: true,
+        },
+      }),
+      prisma.payment.aggregate({
+        _sum: { amount: true },
+        where: {
+          status: "SUCCESS",
+          order: { vendorId: vendor.id },
+        },
+      }),
+      prisma.payment.aggregate({
+        _sum: { amount: true },
+        where: {
+          status: "SUCCESS",
+          order: {
+            vendorId: vendor.id,
+            createdAt: { gte: startOfThisWeek, lt: now },
+          },
+        },
+      }),
+      prisma.payment.aggregate({
+        _sum: { amount: true },
+        where: {
+          status: "SUCCESS",
+          order: {
+            vendorId: vendor.id,
+            createdAt: { gte: startOfLastWeek, lt: startOfThisWeek },
+          },
+        },
+      }),
+    ]);
+
+    const totalRevenue = totalRevenueAllTime._sum.amount
+      ? totalRevenueAllTime._sum.amount.toString()
+      : "0";
+
+    const lastWeekRevenue = revenueLastWeek._sum.amount
+      ? Number(revenueLastWeek._sum.amount)
+      : 0;
+
+    const thisWeekRevenue = revenueThisWeek._sum.amount
+      ? Number(revenueThisWeek._sum.amount)
+      : 0;
+
+    const revenueChangePctThisWeek =
+      lastWeekRevenue > 0
+        ? Number(
+            (
+              ((thisWeekRevenue - lastWeekRevenue) / lastWeekRevenue) *
+              100
+            ).toFixed(2),
+          )
+        : 0;
+
+    return {
+      summary: {
+        totalRevenue,
+        revenueChangePctThisWeek,
+        activeOrders,
+        activeOrdersDeltaSinceYesterday:
+          activeOrdersToday - activeOrdersYesterday,
+        totalProducts,
+        lowStockItems,
+        lowStockThreshold,
+      },
+      recentOrders: recentOrders.map((order) => ({
+        orderId: order.id,
+        customerName: order.user?.name ?? "Customer",
+        itemCount: order.items.length,
+        amount: Number(order.totalAmount),
+        status: order.status,
+        createdAt: order.createdAt,
+      })),
+      stockAlerts: stockAlerts.map((product) => ({
+        productId: product.id,
+        name: product.name,
+        imageUrl: product.imageUrl,
+        stock: product.stock,
+        isOutOfStock: product.stock === 0,
+      })),
     };
   }
 }

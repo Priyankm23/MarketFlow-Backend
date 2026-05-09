@@ -15,8 +15,12 @@ export const validate = (schema: z.ZodTypeAny) => {
       const parsedObject = parsed as Record<string, unknown>;
 
       if (parsedObject.body !== undefined) req.body = parsedObject.body;
-      if (parsedObject.query !== undefined)
-        req.query = parsedObject.query as Request["query"];
+      if (parsedObject.query !== undefined) {
+        const nextQuery = parsedObject.query as Request["query"];
+        for (const [key, value] of Object.entries(nextQuery)) {
+          (req.query as Record<string, unknown>)[key] = value;
+        }
+      }
       if (parsedObject.params !== undefined)
         req.params = parsedObject.params as Request["params"];
       if (parsedObject.cookies && typeof parsedObject.cookies === "object") {
