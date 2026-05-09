@@ -8,8 +8,15 @@ export const deliveryRoutes = Router();
 deliveryRoutes.get(
   "/profile",
   requireAuth,
-  requireRole(["DELIVERY_PARTNER,VENDOR"]),
+  requireRole(["DELIVERY_PARTNER"]),
   DeliveryController.getProfile,
+);
+
+deliveryRoutes.get(
+  "/dashboard",
+  requireAuth,
+  requireRole(["DELIVERY_PARTNER"]),
+  DeliveryController.getDashboard,
 );
 
 deliveryRoutes.get(
@@ -34,6 +41,20 @@ deliveryRoutes.get(
   DeliveryController.getAssignedTasks,
 );
 
+deliveryRoutes.get(
+  "/current",
+  requireAuth,
+  requireRole(["DELIVERY_PARTNER"]),
+  DeliveryController.getCurrentDeliveries,
+);
+
+deliveryRoutes.get(
+  "/deliveries/today",
+  requireAuth,
+  requireRole(["DELIVERY_PARTNER"]),
+  DeliveryController.getDeliveredToday,
+);
+
 deliveryRoutes.post(
   "/orders/:orderId/respond",
   requireAuth,
@@ -55,4 +76,18 @@ deliveryRoutes.post(
   requireAuth,
   requireRole(["VENDOR"]),
   DeliveryController.triggerAssignment,
+);
+
+deliveryRoutes.post(
+  "/orders/:orderId/pickup-otp",
+  requireAuth,
+  requireRole(["VENDOR"]),
+  DeliveryController.generatePickupOtp,
+);
+
+deliveryRoutes.post(
+  "/orders/:orderId/pickup-otp/verify",
+  requireAuth,
+  requireRole(["DELIVERY_PARTNER"]),
+  DeliveryController.verifyPickupOtp,
 );

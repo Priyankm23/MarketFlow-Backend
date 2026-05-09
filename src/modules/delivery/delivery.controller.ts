@@ -18,6 +18,21 @@ export class DeliveryController {
     }
   }
 
+  // GET /api/v1/delivery/dashboard
+  static async getDashboard(req: Request, res: Response, next: NextFunction) {
+    try {
+      const userId = req.user!.userId;
+      const dashboard = await DeliveryService.getPartnerDashboard(userId);
+
+      res.status(200).json({
+        success: true,
+        data: dashboard,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   // GET /api/v1/delivery/coverage-pincodes
   static async getCoveragePincodes(
     req: Request,
@@ -85,6 +100,44 @@ export class DeliveryController {
     }
   }
 
+  // GET /api/v1/delivery/current
+  static async getCurrentDeliveries(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const userId = req.user!.userId;
+      const deliveries = await DeliveryService.getCurrentDeliveries(userId);
+
+      res.status(200).json({
+        success: true,
+        data: deliveries,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // GET /api/v1/delivery/deliveries/today
+  static async getDeliveredToday(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const userId = req.user!.userId;
+      const deliveries = await DeliveryService.getDeliveredToday(userId);
+
+      res.status(200).json({
+        success: true,
+        data: deliveries,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   // POST /api/v1/delivery/orders/:orderId/respond
   static async respondToAssignment(
     req: Request,
@@ -141,6 +194,35 @@ export class DeliveryController {
     }
   }
 
+  // POST /api/v1/delivery/orders/:orderId/pickup-otp
+  static async generatePickupOtp(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const orderId = Array.isArray(req.params.orderId)
+        ? req.params.orderId[0]
+        : req.params.orderId;
+
+      if (!orderId) {
+        throw new ApiError(400, "Order ID is required");
+      }
+
+      const result = await DeliveryService.generatePickupOtp(
+        orderId,
+        req.user!.userId,
+      );
+
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   // POST /api/v1/delivery/orders/:orderId/complete
   static async markDelivered(req: Request, res: Response, next: NextFunction) {
     try {
@@ -154,6 +236,33 @@ export class DeliveryController {
       }
 
       const result = await DeliveryService.completeDelivery(orderId, userId);
+
+      res.status(200).json(result);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // POST /api/v1/delivery/orders/:orderId/pickup-otp/verify
+  static async verifyPickupOtp(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const orderId = Array.isArray(req.params.orderId)
+        ? req.params.orderId[0]
+        : req.params.orderId;
+
+      if (!orderId) {
+        throw new ApiError(400, "Order ID is required");
+      }
+
+      const result = await DeliveryService.verifyPickupOtp(
+        orderId,
+        req.user!.userId,
+        req.body.otp,
+      );
 
       res.status(200).json(result);
     } catch (error) {

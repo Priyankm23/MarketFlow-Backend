@@ -1,8 +1,20 @@
 import { prisma } from "../../db/prisma.js";
 import { ApiError } from "../../core/errors/ApiError.js";
 import { OrderStatus, Prisma } from "../../../generated/prisma/index.js";
+import { redis } from "../../config/redis.js";
 
 export class DeliveryService {
+  private static pickupOtpKey(orderId: string) {
+    return `delivery:pickup-otp:${orderId}`;
+  }
+
+  private static pickupOtpAttemptsKey(orderId: string) {
+    return `delivery:pickup-otp-attempts:${orderId}`;
+  }
+
+  private static generateFourDigitOtp() {
+    return `${Math.floor(1000 + Math.random() * 9000)}`;
+  }
   private static extractPincode(value: string) {
     const match = value.match(/\b\d{6}\b/);
     return match ? match[0] : value.trim();
@@ -32,6 +44,34 @@ export class DeliveryService {
     return Math.min(60, 15 + activeDeliveries * 5);
   }
 
+  private static startOfDay(date: Date) {
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  }
+
+  private static startOfWeek(date: Date) {
+    const start = this.startOfDay(date);
+    const day = start.getDay();
+    const diff = (day + 6) % 7;
+    start.setDate(start.getDate() - diff);
+    return start;
+  }
+
+  private static formatDateKey(date: Date) {
+    const year = date.getFullYear();
+    const month = `${date.getMonth() + 1}`.padStart(2, "0");
+    const day = `${date.getDate()}`.padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
+  private static sumDeliveryFees(
+    events: Array<{ order: { deliveryFee: unknown } }>,
+  ) {
+    return events.reduce(
+      (sum, event) => sum + Number(event.order.deliveryFee ?? 0),
+      0,
+    );
+  }
+
   static async getPartnerProfile(userId: string) {
     const partner = await prisma.deliveryPartner.findUnique({
       where: { userId },
@@ -53,6 +93,172 @@ export class DeliveryService {
     }
 
     return partner;
+  }
+
+  static async generatePickupOtp(orderId: string, vendorUserId: string) {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: {
+        id: true,
+        vendor: {
+          select: {
+            userId: true,
+          },
+        },
+        status: true,
+        deliveryPartnerId: true,
+      },
+    });
+
+    if (!order) {
+      throw new ApiError(404, "Order not found");
+    }
+
+    if (order.vendor?.userId !== vendorUserId) {
+      throw new ApiError(403, "You are not authorized to generate OTP");
+    }
+
+    if (!order.deliveryPartnerId) {
+      throw new ApiError(400, "Order has not been assigned to a partner");
+    }
+
+    if (order.status !== OrderStatus.READY_FOR_PICKUP) {
+      throw new ApiError(
+        400,
+        "OTP can only be generated for READY_FOR_PICKUP orders",
+      );
+    }
+
+    const otp = this.generateFourDigitOtp();
+    const ttlSeconds = 10 * 60;
+    const key = this.pickupOtpKey(orderId);
+    const attemptsKey = this.pickupOtpAttemptsKey(orderId);
+
+    await redis.set(key, otp, "EX", ttlSeconds);
+    await redis.del(attemptsKey);
+
+    return {
+      otp,
+      expiresInSeconds: ttlSeconds,
+    };
+  }
+
+  static async getPartnerDashboard(userId: string) {
+    const partner = await prisma.deliveryPartner.findUnique({
+      where: { userId },
+      select: {
+        id: true,
+        dailyCapacity: true,
+      },
+    });
+
+    if (!partner) {
+      throw new ApiError(404, "Delivery partner profile not found");
+    }
+
+    const now = new Date();
+    const todayStart = this.startOfDay(now);
+    const yesterdayStart = new Date(todayStart);
+    yesterdayStart.setDate(todayStart.getDate() - 1);
+    const weekStart = this.startOfWeek(now);
+    const lookbackStart = new Date(todayStart);
+    lookbackStart.setDate(todayStart.getDate() - 29);
+
+    const [todayEvents, yesterdayEvents, weekEvents, recentEvents] =
+      await Promise.all([
+        prisma.orderEvent.findMany({
+          where: {
+            status: OrderStatus.DELIVERED,
+            createdAt: { gte: todayStart, lt: now },
+            order: { deliveryPartnerId: partner.id },
+          },
+          select: {
+            order: { select: { deliveryFee: true } },
+            createdAt: true,
+          },
+        }),
+        prisma.orderEvent.findMany({
+          where: {
+            status: OrderStatus.DELIVERED,
+            createdAt: { gte: yesterdayStart, lt: todayStart },
+            order: { deliveryPartnerId: partner.id },
+          },
+          select: {
+            order: { select: { deliveryFee: true } },
+            createdAt: true,
+          },
+        }),
+        prisma.orderEvent.findMany({
+          where: {
+            status: OrderStatus.DELIVERED,
+            createdAt: { gte: weekStart, lt: now },
+            order: { deliveryPartnerId: partner.id },
+          },
+          select: {
+            order: { select: { deliveryFee: true } },
+            createdAt: true,
+          },
+        }),
+        prisma.orderEvent.findMany({
+          where: {
+            status: OrderStatus.DELIVERED,
+            createdAt: { gte: lookbackStart, lt: now },
+            order: { deliveryPartnerId: partner.id },
+          },
+          select: {
+            order: { select: { deliveryFee: true } },
+            createdAt: true,
+          },
+          orderBy: { createdAt: "desc" },
+        }),
+      ]);
+
+    const todayEarnings = this.sumDeliveryFees(todayEvents);
+    const yesterdayEarnings = this.sumDeliveryFees(yesterdayEvents);
+    const weekToDateEarnings = this.sumDeliveryFees(weekEvents);
+
+    const growthPercentage =
+      yesterdayEarnings > 0
+        ? Number(
+            (
+              ((todayEarnings - yesterdayEarnings) / yesterdayEarnings) *
+              100
+            ).toFixed(2),
+          )
+        : 0;
+
+    const recentTotalFees = this.sumDeliveryFees(recentEvents);
+    const avgDeliveryFee =
+      recentEvents.length > 0 ? recentTotalFees / recentEvents.length : 0;
+    const dailyTarget = Math.round(avgDeliveryFee * partner.dailyCapacity);
+
+    const deliveredDates = new Set(
+      recentEvents.map((event) => this.formatDateKey(event.createdAt)),
+    );
+
+    let activeStreakDays = 0;
+    for (let offset = 0; offset < 30; offset += 1) {
+      const date = new Date(todayStart);
+      date.setDate(todayStart.getDate() - offset);
+      if (!deliveredDates.has(this.formatDateKey(date))) {
+        break;
+      }
+      activeStreakDays += 1;
+    }
+
+    return {
+      earnings: {
+        today: Number(todayEarnings.toFixed(2)),
+        dailyTarget,
+        weekToDate: Number(weekToDateEarnings.toFixed(2)),
+        growthPercentage,
+      },
+      performance: {
+        ordersCompletedToday: todayEvents.length,
+        averageRating: 0,
+        activeStreakDays,
+      },
+    };
   }
 
   static async getCoveragePincodes(userId: string) {
@@ -288,6 +494,125 @@ export class DeliveryService {
     });
   }
 
+  static async getCurrentDeliveries(partnerUserId: string) {
+    const partner = await prisma.deliveryPartner.findUnique({
+      where: { userId: partnerUserId },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!partner) {
+      throw new ApiError(404, "Delivery partner profile not found");
+    }
+
+    return prisma.order.findMany({
+      where: {
+        deliveryPartnerId: partner.id,
+        status: OrderStatus.READY_FOR_PICKUP,
+      },
+      include: {
+        vendor: {
+          select: {
+            id: true,
+            businessName: true,
+            addressLine1: true,
+            addressLine2: true,
+            city: true,
+            state: true,
+            pincode: true,
+          },
+        },
+        user: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+          },
+        },
+        items: {
+          include: {
+            product: {
+              select: {
+                name: true,
+                imageUrl: true,
+              },
+            },
+          },
+        },
+        events: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+  }
+
+  static async getDeliveredToday(partnerUserId: string) {
+    const partner = await prisma.deliveryPartner.findUnique({
+      where: { userId: partnerUserId },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!partner) {
+      throw new ApiError(404, "Delivery partner profile not found");
+    }
+
+    const now = new Date();
+    const todayStart = this.startOfDay(now);
+
+    return prisma.order.findMany({
+      where: {
+        deliveryPartnerId: partner.id,
+        status: OrderStatus.DELIVERED,
+        events: {
+          some: {
+            status: OrderStatus.DELIVERED,
+            createdAt: { gte: todayStart, lt: now },
+          },
+        },
+      },
+      include: {
+        vendor: {
+          select: {
+            id: true,
+            businessName: true,
+            addressLine1: true,
+            addressLine2: true,
+            city: true,
+            state: true,
+            pincode: true,
+          },
+        },
+        user: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+          },
+        },
+        items: {
+          include: {
+            product: {
+              select: {
+                name: true,
+                imageUrl: true,
+              },
+            },
+          },
+        },
+        events: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+  }
+
   static async respondToAssignment(
     orderId: string,
     partnerUserId: string,
@@ -428,6 +753,89 @@ export class DeliveryService {
       success: true,
       message: "Task rejected and reassignment attempted",
       reassigned,
+    };
+  }
+
+  static async verifyPickupOtp(
+    orderId: string,
+    partnerUserId: string,
+    otp: string,
+  ) {
+    const partner = await prisma.deliveryPartner.findUnique({
+      where: { userId: partnerUserId },
+      select: { id: true },
+    });
+
+    if (!partner) {
+      throw new ApiError(404, "Delivery partner profile not found");
+    }
+
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: {
+        id: true,
+        status: true,
+        deliveryPartnerId: true,
+      },
+    });
+
+    if (!order) {
+      throw new ApiError(404, "Order not found");
+    }
+
+    if (order.deliveryPartnerId !== partner.id) {
+      throw new ApiError(403, "You are not assigned to this order");
+    }
+
+    if (order.status !== OrderStatus.READY_FOR_PICKUP) {
+      throw new ApiError(400, "Order is not awaiting pickup verification");
+    }
+
+    if (!otp || !/^[0-9]{4}$/.test(otp)) {
+      throw new ApiError(400, "OTP must be a 4 digit code");
+    }
+
+    const key = this.pickupOtpKey(orderId);
+    const attemptsKey = this.pickupOtpAttemptsKey(orderId);
+
+    const storedOtp = await redis.get(key);
+    if (!storedOtp) {
+      throw new ApiError(400, "OTP expired or not generated");
+    }
+
+    if (storedOtp !== otp) {
+      const attempts = await redis.incr(attemptsKey);
+      if (attempts === 1) {
+        await redis.expire(attemptsKey, 10 * 60);
+      }
+
+      if (attempts >= 5) {
+        await redis.del(key);
+        throw new ApiError(400, "OTP attempts exceeded. Generate a new OTP");
+      }
+
+      throw new ApiError(400, "Invalid OTP");
+    }
+
+    await prisma.order.update({
+      where: { id: orderId },
+      data: { status: OrderStatus.OUT_FOR_DELIVERY },
+    });
+
+    await prisma.orderEvent.create({
+      data: {
+        orderId,
+        status: OrderStatus.OUT_FOR_DELIVERY,
+        note: "[PICKUP] Package handoff verified via OTP.",
+      },
+    });
+
+    await redis.del(key);
+    await redis.del(attemptsKey);
+
+    return {
+      success: true,
+      message: "Pickup verified. Order is out for delivery.",
     };
   }
 
