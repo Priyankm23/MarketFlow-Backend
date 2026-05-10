@@ -40,6 +40,12 @@ router.get(
   OrderController.getVendorOrders,
 );
 
+router.get(
+  "/vendor-orders/:orderId/delivery-status",
+  requireRole(["VENDOR"]),
+  OrderController.getVendorDeliveryStatus,
+);
+
 router.post(
   "/:orderId/ready-for-delivery",
   requireRole(["VENDOR"]),

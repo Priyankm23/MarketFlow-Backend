@@ -2,6 +2,8 @@ import { prisma } from "../../db/prisma.js";
 import { ApiError } from "../../core/errors/ApiError.js";
 import { OrderStatus, Prisma } from "../../../generated/prisma/index.js";
 import { OrderStateMachine } from "./orderStateMachine.js";
+import { emailQueue } from "../../jobs/queues/queue.js";
+import { env } from "../../config/env.js";
 import { CartService } from "../cart/cart.service.js";
 import { OrderPricingService } from "./pricing.service.js";
 
@@ -319,6 +321,34 @@ export class OrderService {
     );
 
     // 3. Post-Transition Triggers
+    if (newStatus === OrderStatus.DELIVERED) {
+      const deliveredOrder = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: { vendor: { select: { businessName: true } } },
+      });
+
+      if (deliveredOrder?.shippingEmail) {
+        const helpUrl = env.APP_HELP_URL ?? undefined;
+        const feedbackUrl = env.APP_FEEDBACK_URL ?? undefined;
+
+        await emailQueue.add(
+          "order-delivered-email",
+          {
+            orderId: deliveredOrder.id,
+            customerName: deliveredOrder.shippingFullName || "Customer",
+            customerEmail: deliveredOrder.shippingEmail,
+            vendorName: deliveredOrder.vendor.businessName,
+            deliveredAt: deliveredOrder.updatedAt.toISOString(),
+            helpUrl,
+            feedbackUrl,
+          },
+          {
+            jobId: `order-delivered-${deliveredOrder.id}-${deliveredOrder.updatedAt.toISOString()}`,
+          },
+        );
+      }
+    }
+
     // if (newStatus === OrderStatus.PACKED) {
     //   // Automatically attempt to assign a delivery partner
     //   // We don't block the response, we catch & log if it fails.
@@ -444,21 +474,6 @@ export class OrderService {
       where: { vendorId: vendor.id },
       include: {
         user: { select: { name: true, email: true, phone: true } },
-        deliveryPartner: {
-          select: {
-            id: true,
-            user: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-                phone: true,
-              },
-            },
-            activeDeliveries: true,
-            dailyCapacity: true,
-          },
-        },
         items: {
           include: {
             product: {
@@ -527,5 +542,85 @@ export class OrderService {
     }
 
     return order;
+  }
+
+  static async getVendorDeliveryStatus(orderId: string, vendorUserId: string) {
+    const vendor = await prisma.vendor.findUnique({
+      where: { userId: vendorUserId },
+    });
+
+    if (!vendor) {
+      throw new ApiError(403, "Vendor profile not found");
+    }
+
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        deliveryPartner: {
+          select: {
+            id: true,
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                phone: true,
+              },
+            },
+            activeDeliveries: true,
+            dailyCapacity: true,
+          },
+        },
+        events: {
+          orderBy: { createdAt: "desc" },
+          take: 3,
+        },
+      },
+    });
+
+    if (!order || order.vendorId !== vendor.id) {
+      throw new ApiError(404, "Order not found");
+    }
+
+    const latestEvent = order.events[0];
+    const etaMatch = latestEvent?.note
+      ? /(Pickup ETA|Customer delivery ETA|Estimated pickup ETA): (\d+) minutes/i.exec(
+          latestEvent.note,
+        )
+      : null;
+
+    let deliveryStage: "PICKUP" | "LINEHAUL" | "LAST_MILE" | "UNKNOWN" =
+      "UNKNOWN";
+
+    if (latestEvent?.note?.includes("[PICKUP]")) {
+      deliveryStage = "PICKUP";
+    } else if (latestEvent?.note?.includes("[LINEHAUL]")) {
+      deliveryStage = "LINEHAUL";
+    } else if (latestEvent?.note?.includes("[LAST_MILE]")) {
+      deliveryStage = "LAST_MILE";
+    }
+
+    let verdict: "PENDING" | "ACCEPTED" | "REJECTED" | "UNKNOWN" =
+      "UNKNOWN";
+
+    if (order.status === OrderStatus.READY_FOR_PICKUP) {
+      verdict = "ACCEPTED";
+    } else if (order.status === OrderStatus.OUT_FOR_DELIVERY) {
+      verdict = "ACCEPTED";
+    } else if (latestEvent?.note?.includes("rejected")) {
+      verdict = "REJECTED";
+    } else if (latestEvent?.note?.includes("waiting for acceptance")) {
+      verdict = "PENDING";
+    }
+
+    return {
+      orderId: order.id,
+      status: order.status,
+      verdict,
+      deliveryStage,
+      pickupEtaMinutes: etaMatch ? Number(etaMatch[2]) : null,
+      deliveryPartner: order.deliveryPartner,
+      latestEvent,
+    };
   }
 }

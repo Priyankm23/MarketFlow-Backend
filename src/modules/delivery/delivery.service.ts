@@ -2,6 +2,8 @@ import { prisma } from "../../db/prisma.js";
 import { ApiError } from "../../core/errors/ApiError.js";
 import { OrderStatus, Prisma } from "../../../generated/prisma/index.js";
 import { redis } from "../../config/redis.js";
+import { emailQueue } from "../../jobs/queues/queue.js";
+import { env } from "../../config/env.js";
 
 export class DeliveryService {
   private static pickupOtpKey(orderId: string) {
@@ -958,9 +960,46 @@ export class DeliveryService {
           data: { activeDeliveries: { decrement: 1 } },
         });
 
-        return { success: true, message: "Delivery completed successfully" };
+        return {
+          success: true,
+          delivered: true,
+          message: "Delivery completed successfully",
+        };
       })
       .then(async (result: unknown) => {
+        if (
+          result &&
+          typeof result === "object" &&
+          "delivered" in result &&
+          result.delivered
+        ) {
+          const deliveredOrder = await prisma.order.findUnique({
+            where: { id: orderId },
+            include: { vendor: { select: { businessName: true } } },
+          });
+
+          if (deliveredOrder?.shippingEmail) {
+            const helpUrl = env.APP_HELP_URL ?? undefined;
+            const feedbackUrl = env.APP_FEEDBACK_URL ?? undefined;
+
+            await emailQueue.add(
+              "order-delivered-email",
+              {
+                orderId: deliveredOrder.id,
+                customerName: deliveredOrder.shippingFullName || "Customer",
+                customerEmail: deliveredOrder.shippingEmail,
+                vendorName: deliveredOrder.vendor.businessName,
+                deliveredAt: deliveredOrder.updatedAt.toISOString(),
+                helpUrl,
+                feedbackUrl,
+              },
+              {
+                jobId: `order-delivered-${deliveredOrder.id}-${deliveredOrder.updatedAt.toISOString()}`,
+              },
+            );
+          }
+        }
+
         if (
           result &&
           typeof result === "object" &&

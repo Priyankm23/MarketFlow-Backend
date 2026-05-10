@@ -2,6 +2,7 @@ import { Worker } from "bullmq";
 import { bullRedis } from "../../config/redis.js";
 import {
   sendOrderPlacedInvoiceEmail,
+  sendOrderDeliveredEmail,
   sendWelcomeEmail,
 } from "../../core/utils/emailService.js";
 import dns from "node:dns";
@@ -38,6 +39,18 @@ const worker = new Worker(
 
       return {
         invoiceSentTo: job.data.customerEmail,
+        orderId: job.data.orderId,
+        sentAt: new Date().toISOString(),
+      };
+    }
+
+    if (job.name === "order-delivered-email") {
+      await job.updateProgress(30);
+      await sendOrderDeliveredEmail(job.data);
+      await job.updateProgress(100);
+
+      return {
+        deliveredNoticeSentTo: job.data.customerEmail,
         orderId: job.data.orderId,
         sentAt: new Date().toISOString(),
       };

@@ -38,6 +38,24 @@ export class OrderController {
     res.status(200).json({ status: "success", data: orders });
   }
 
+  static async getVendorDeliveryStatus(req: Request, res: Response) {
+    const orderId = Array.isArray(req.params.orderId)
+      ? req.params.orderId[0]
+      : req.params.orderId;
+
+    if (!orderId) {
+      res.status(400).json({ status: "fail", message: "Order ID is required" });
+      return;
+    }
+
+    const deliveryStatus = await OrderService.getVendorDeliveryStatus(
+      orderId,
+      req.user!.userId,
+    );
+
+    res.status(200).json({ status: "success", data: deliveryStatus });
+  }
+
   static async markReadyForDelivery(req: Request, res: Response) {
     const orderId = Array.isArray(req.params.orderId)
       ? req.params.orderId[0]
