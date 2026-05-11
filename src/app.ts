@@ -118,13 +118,23 @@ app.get("/which-server", (req, res) => {
 import net from "net";
 
 app.get("/test-smtp", (req, res) => {
-  const socket = net.createConnection({ host: "smtp.gmail.com", port: 587 });
-  socket.on("connect", () => res.json({ status: "connected" }));
-  socket.on("error", (err) => res.json({ error: err.message }));
-  setTimeout(() => {
-    socket.destroy();
-    res.json({ status: "timeout" });
-  }, 5000);
+  let responded = false;
+  const socket = net.createConnection({
+    host: "smtp.gmail.com",
+    port: 587,
+  });
+
+  const done = (data) => {
+    if (!responded) {
+      responded = true;
+      socket.destroy();
+      res.json(data);
+    }
+  };
+
+  socket.on("connect", () => done({ status: "connected" }));
+  socket.on("error", (err) => done({ error: err.message }));
+  setTimeout(() => done({ status: "timeout" }), 5000);
 });
 
 app.get("/", (_req, res) => {
