@@ -44,6 +44,7 @@ const transporter = nodemailer.createTransport({
   secure: false,
   // Nodemailer supports `family` at runtime, but the installed type defs omit it.
   family: 4,
+  requireTLS: true,
   auth: {
     user: env.SMTP_USER,
     pass: env.SMTP_PASS,
