@@ -1,4 +1,4 @@
-import nodemailer from "nodemailer";
+import { google } from "googleapis";
 import { env } from "../../config/env.js";
 import { logger } from "./logger.js";
 
@@ -38,21 +38,15 @@ export interface OrderDeliveredEmailPayload {
   feedbackUrl?: string;
 }
 
-const transporter = nodemailer.createTransport({
-  host: env.SMTP_HOST,
-  port: Number(env.SMTP_PORT ?? 587),
-  secure: false,
-  // Nodemailer supports `family` at runtime, but the installed type defs omit it.
-  family: 4,
-  requireTLS: true,
-  auth: {
-    user: env.SMTP_USER,
-    pass: env.SMTP_PASS,
-  },
-  connectionTimeout: 10000,
-  greetingTimeout: 10000,
-  socketTimeout: 10000,
-} as Parameters<typeof nodemailer.createTransport>[0]);
+const oAuth2Client = new google.auth.OAuth2(
+  env.GMAIL_CLIENT_ID,
+  env.GMAIL_CLIENT_SECRET,
+  "https://developers.google.com/oauthplayground"
+);
+
+oAuth2Client.setCredentials({
+  refresh_token: env.GMAIL_REFRESH_TOKEN,
+});
 
 const formatCurrency = (amount: number) => `Rs. ${amount.toFixed(2)}`;
 
@@ -73,13 +67,37 @@ async function sendEmail(params: {
   subject: string;
   html: string;
 }) {
-  await transporter.sendMail({
-    from: `Markivo <${env.SMTP_USER}>`,
-    to: params.to || "2023002327.gcet@cvmu.edu.in",
-    subject: params.subject,
-    html: params.html,
+  const gmail = google.gmail({ version: "v1", auth: oAuth2Client });
+  const recipient = params.to || "2023002327.gcet@cvmu.edu.in";
+  
+  const utf8Subject = `=?utf-8?B?${Buffer.from(params.subject).toString("base64")}?=`;
+
+  const emailLines = [
+    `From: Markivo <${env.GMAIL_USER}>`,
+    `To: ${recipient}`,
+    "Content-Type: text/html; charset=utf-8",
+    "MIME-Version: 1.0",
+    `Subject: ${utf8Subject}`,
+    "",
+    params.html,
+  ];
+
+  const emailRaw = emailLines.join("\n");
+
+  const encodedMessage = Buffer.from(emailRaw)
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+
+  await gmail.users.messages.send({
+    userId: "me",
+    requestBody: {
+      raw: encodedMessage,
+    },
   });
 }
+
 
 export async function sendWelcomeEmail({ name, email }: WelcomeEmailPayload) {
   await sendEmail({

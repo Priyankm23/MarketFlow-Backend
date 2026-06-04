@@ -36,10 +36,10 @@ export const env = {
   CORS_ORIGIN: getEnvVariable("CORS_ORIGIN"),
   REDIS_URL: getEnvVariable("REDIS_URL"),
 
-  SMTP_HOST: getEnvVariable("SMTP_SERVER"),
-  SMTP_PORT: getEnvVariable("SMTP_PORT"),
-  SMTP_USER: getEnvVariable("SMTP_USER"),
-  SMTP_PASS: getEnvVariable("SMTP_PASS"),
+  GMAIL_USER: getEnvVariable("GMAIL_USER"),
+  GMAIL_CLIENT_ID: getEnvVariable("GMAIL_CLIENT_ID"),
+  GMAIL_CLIENT_SECRET: getEnvVariable("GMAIL_CLIENT_SECRET"),
+  GMAIL_REFRESH_TOKEN: getEnvVariable("GMAIL_REFRESH_TOKEN"),
 
   APP_HELP_URL: process.env.APP_HELP_URL?.trim() || "",
   APP_FEEDBACK_URL: process.env.APP_FEEDBACK_URL?.trim() || "",

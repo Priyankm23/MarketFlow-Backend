@@ -5,10 +5,7 @@ import {
   sendOrderDeliveredEmail,
   sendWelcomeEmail,
 } from "../../core/utils/emailService.js";
-import dns from "node:dns";
 import { logger, serializeError } from "../../core/utils/logger.js";
-
-dns.setDefaultResultOrder("ipv4first");
 
 const workerLogger = logger.child({ component: "email-worker" });
 

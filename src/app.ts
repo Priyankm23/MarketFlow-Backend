@@ -115,28 +115,6 @@ app.get("/which-server", (req, res) => {
   });
 });
 
-import net from "net";
-
-app.get("/test-smtp", (req, res) => {
-  let responded = false;
-  const socket = net.createConnection({
-    host: "smtp.gmail.com",
-    port: 587,
-  });
-
-  const done = (data) => {
-    if (!responded) {
-      responded = true;
-      socket.destroy();
-      res.json(data);
-    }
-  };
-
-  socket.on("connect", () => done({ status: "connected" }));
-  socket.on("error", (err) => done({ error: err.message }));
-  setTimeout(() => done({ status: "timeout" }), 5000);
-});
-
 app.get("/", (_req, res) => {
   res.status(200).json({ status: "ok", message: "Welcome to Marketflow" });
 });
