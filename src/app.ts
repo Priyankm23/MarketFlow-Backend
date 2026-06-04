@@ -53,6 +53,7 @@ if (process.env.CORS_ORIGIN) {
 }
 
 // your frontend
+allowedOrigins.add("https://markivo-your-one-stop-shop.vercel.app");
 allowedOrigins.add("https://marketflow-your-one-stop-shop.vercel.app");
 
 // local dev
